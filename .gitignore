@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+data/*.npz
+models/*.joblib
+models/training_summary.json
+reports/benchmark_results/
+.venv/
+*.egg-info/
+.DS_Store
