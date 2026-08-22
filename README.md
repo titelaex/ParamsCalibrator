@@ -40,27 +40,33 @@ Every calibrator — the five classical baselines and the MLP alike — exposes 
 
 ## Setup
 
+Managed with [uv](https://docs.astral.sh/uv/). This creates an isolated `.venv/` and installs
+the exact versions pinned in `uv.lock`:
+
 ```
-pip install -r requirements.txt
+uv sync
 ```
+
+(A plain `pip install -r requirements.txt` into your own virtualenv also works, if you'd rather
+not use uv.)
 
 ## Generate the synthetic datasets
 
 ```
-python scripts/generate_datasets.py
+uv run python scripts/generate_datasets.py
 ```
 
 ## Train the ML calibration model
 
 ```
-python scripts/train_ml.py
+uv run python scripts/train_ml.py
 ```
 
 ## Run the benchmark
 
 ```
-python scripts/run_benchmark.py --quick   # ~1 min, pipeline smoke-test only
-python scripts/run_benchmark.py           # ~20-30 min, presentation-quality numbers
+uv run python scripts/run_benchmark.py --quick   # ~1 min, pipeline smoke-test only
+uv run python scripts/run_benchmark.py           # ~20-30 min, presentation-quality numbers
 ```
 
 Runs all six methods (GA, PSO, LM, EKF, Bayesian Optimization, MLP) through the identical
@@ -74,7 +80,7 @@ the population heuristics (GA/PSO run hundreds of full simulator rollouts per ca
 ## Run the API
 
 ```
-uvicorn src.api.app:app --reload
+uv run uvicorn src.api.app:app --reload
 ```
 
 ```
@@ -100,7 +106,7 @@ pre-built artifacts or external data are copied in), so it is fully reproducible
 ## Run tests
 
 ```
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ## ML model: where the learning actually helps

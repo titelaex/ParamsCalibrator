@@ -1,5 +1,3 @@
-"""Sensor model: additive Gaussian noise on top of true simulated temperatures."""
-
 import numpy as np
 
 

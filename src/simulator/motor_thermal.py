@@ -1,13 +1,6 @@
 """
-Motor winding thermal models (1-node and 2-node lumped-parameter ODEs) and a
+Motor winding thermal models (1-node and 2-node) and a
 fixed-step RK4 integrator.
-
-The applied current I(t) is treated as piecewise-constant over each
-integration step (zero-order hold) — a standard and defensible assumption
-given that in practice the "known excitation" is itself a sampled signal,
-not a continuous analytic function. This also keeps integration simple and
-fast (no interpolation needed) which matters when generating thousands of
-synthetic runs for ML training data.
 
 1-node:   C * dT/dt        = I(t)^2*R - hA*(T - T_amb)
 2-node:   C_w * dT_w/dt    = I(t)^2*R - k_wh*(T_w - T_h)
@@ -21,9 +14,9 @@ import numpy as np
 from src.simulator.params import OneNodeParams, TwoNodeParams
 
 
-# ---------------------------------------------------------------------------
+
 # 1-node model
-# ---------------------------------------------------------------------------
+
 
 def _one_node_deriv(T: float, I: float, p: OneNodeParams) -> float:
     P_loss = I * I * p.R_winding
@@ -32,13 +25,6 @@ def _one_node_deriv(T: float, I: float, p: OneNodeParams) -> float:
 
 def simulate_one_node(params: OneNodeParams, t: np.ndarray, I_t: np.ndarray, T0: float | None = None) -> np.ndarray:
     """Integrate the 1-node thermal model over the time grid `t`.
-
-    Parameters
-    ----------
-    params : OneNodeParams (ground-truth constants for this run)
-    t : (N,) array, seconds, uniform grid
-    I_t : (N,) array, applied current (A) at each grid point
-    T0 : initial winding temperature; defaults to T_ambient if not given.
 
     Returns
     -------
@@ -63,16 +49,13 @@ def simulate_one_node(params: OneNodeParams, t: np.ndarray, I_t: np.ndarray, T0:
 
 def steady_state_one_node(hA: float, R_winding: float, I_level: float, T_ambient: float) -> float:
     """Analytical steady-state winding temperature for a constant applied current.
-
-    Used as an independent sanity check on the integrator (Section 6 of the
-    proposal: T_ss - T_ambient = I^2 R / hA).
     """
     return T_ambient + (I_level ** 2) * R_winding / hA
 
 
-# ---------------------------------------------------------------------------
+
 # 2-node model
-# ---------------------------------------------------------------------------
+
 
 def _two_node_deriv(state: np.ndarray, I: float, p: TwoNodeParams) -> np.ndarray:
     T_w, T_h = state
@@ -110,9 +93,7 @@ def steady_state_two_node(hA: float, k_wh: float, R_winding: float, I_level: flo
     """Analytical steady-state (T_w_ss, T_h_ss) for a constant applied current.
 
     At steady state both derivatives are zero:
-        P_loss = k_wh * (T_w - T_h)              (all generated heat flows winding->housing)
-        k_wh * (T_w - T_h) = hA * (T_h - T_amb)   (which then all flows housing->ambient)
-    => T_h_ss = T_ambient + P_loss / hA
+       T_h_ss = T_ambient + P_loss / hA
        T_w_ss = T_h_ss + P_loss / k_wh
     """
     P_loss = (I_level ** 2) * R_winding

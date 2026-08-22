@@ -1,7 +1,4 @@
 """
-Synthetic dataset generation for both testbeds (1-node and 2-node motor
-thermal model).
-
 Each "run" = one randomly sampled ground-truth parameter set + one randomly
 sampled load profile, simulated on the shared time grid, with Gaussian sensor
 noise added at a randomly sampled noise level. A run is the unit that later
@@ -36,9 +33,9 @@ def time_grid() -> np.ndarray:
     return np.arange(0.0, SIM_DURATION_S + SIM_DT_S, SIM_DT_S)
 
 
-# ---------------------------------------------------------------------------
+
 # Single-run generation
-# ---------------------------------------------------------------------------
+
 
 def generate_one_node_run(t: np.ndarray, rng: np.random.Generator) -> dict:
     hA = _rand_in(rng, *HA_RANGE_W_PER_K)
@@ -92,9 +89,9 @@ def generate_two_node_run(t: np.ndarray, rng: np.random.Generator) -> dict:
     }
 
 
-# ---------------------------------------------------------------------------
+
 # Batch dataset generation
-# ---------------------------------------------------------------------------
+
 
 def generate_one_node_dataset(n_runs: int, seed: int) -> dict:
     rng = np.random.default_rng(seed)

@@ -24,7 +24,7 @@ def _rand_in(rng, lo, hi):
 def step_profile(t: np.ndarray, rng: np.random.Generator):
     """Zero current, then a jump to a held load level."""
     duration = t[-1]
-    i_lo, i_hi = CURRENT_RANGE_A
+    _, i_hi = CURRENT_RANGE_A
     level = _rand_in(rng, 0.3 * i_hi, i_hi)
     t_start = _rand_in(rng, 0.0, 0.1 * duration)
     I = np.where(t >= t_start, level, 0.0)
@@ -35,7 +35,7 @@ def step_profile(t: np.ndarray, rng: np.random.Generator):
 def duty_cycle_profile(t: np.ndarray, rng: np.random.Generator):
     """Periodic on/off load — an intermittent process load."""
     duration = t[-1]
-    i_lo, i_hi = CURRENT_RANGE_A
+    _, i_hi = CURRENT_RANGE_A
     level = _rand_in(rng, 0.3 * i_hi, i_hi)
     idle_level = _rand_in(rng, 0.0, 0.15 * i_hi)
     period = _rand_in(rng, duration / 8, duration / 3)
@@ -54,7 +54,7 @@ def duty_cycle_profile(t: np.ndarray, rng: np.random.Generator):
 
 def ramp_profile(t: np.ndarray, rng: np.random.Generator):
     """Linearly increasing (or decreasing) load."""
-    i_lo, i_hi = CURRENT_RANGE_A
+    _, i_hi = CURRENT_RANGE_A
     start_level = _rand_in(rng, 0.0, 0.5 * i_hi)
     end_level = _rand_in(rng, 0.3 * i_hi, i_hi)
     I = np.linspace(start_level, end_level, num=t.shape[0])
@@ -74,7 +74,7 @@ def generate_load_profile(profile_type: str, t: np.ndarray, rng: np.random.Gener
 
     Returns (I_t, meta) where I_t is an array the same shape as t (amps) and
     meta is a dict of the randomized profile parameters, useful for
-    stratifying benchmark results later.
+    stratifying benchmark results.
     """
     if profile_type not in _GENERATORS:
         raise ValueError(f"Unknown profile_type {profile_type!r}; expected one of {PROFILE_TYPES}")
