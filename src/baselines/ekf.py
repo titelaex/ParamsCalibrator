@@ -1,26 +1,9 @@
 """
-Extended Kalman Filter calibrator -- sequential/online estimation.
+Extended Kalman Filter calibrator 
 
 Unlike the batch methods (GA, PSO, LM, Bayesian Optimization), the EKF never
 sees the whole run at once: it processes one sensor sample at a time and
-updates a running estimate, which is exactly what a real streaming
-calibration deployment needs (proposal, Section 7, metric 5). It is
-included as the classical method actually designed for this setting -- the
-most direct competitor to the ML model on speed/streaming suitability.
-
-State augmentation: the unknown physical constant(s) are appended to the
-ODE state and modeled as a (near-)random walk (tiny process noise), while
-temperature evolves through one Euler step of the same physics each sample
-period. The nonlinearity comes from the hA*(T - T_amb) / k_wh*(T_w - T_h)
-product terms coupling temperature and the unknown constant, which is why a
-*linear* Kalman filter is not enough and why the state transition must be
-linearized (via its Jacobian) at every step -- the "Extended" in EKF.
-
-Euler (not RK4) is used for the process model here: the filter's own model
-of the world does not need to match the simulator's integrator exactly (a
-real filter never has a perfect model either), and dt=5s is small relative
-to the thermal time constants (~600-1800s), so the discretization error is
-negligible compared to sensor noise.
+updates a running estimate.
 """
 
 import time
@@ -35,9 +18,7 @@ from src.baselines.base import (
 from src.simulator.params import C_HOUSING_J_PER_K, C_LUMPED_J_PER_K, C_WINDING_J_PER_K, R_WINDING_OHM
 
 
-# ---------------------------------------------------------------------------
 # 1-node: state x = [T, hA]
-# ---------------------------------------------------------------------------
 
 def _one_node_step(x, I, dt, R, C, T_ambient):
     T, hA = x
@@ -103,9 +84,9 @@ def calibrate_one_node(
     )
 
 
-# ---------------------------------------------------------------------------
+
 # 2-node: state x = [T_w, T_h, hA, k_wh]
-# ---------------------------------------------------------------------------
+
 
 def _two_node_step(x, I, dt, R, C_w, C_h, T_ambient):
     T_w, T_h, hA, k_wh = x

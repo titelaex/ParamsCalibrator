@@ -1,14 +1,5 @@
 """
-Genetic Algorithm calibrator -- a from-scratch, real-valued GA (no extra
-dependency needed beyond numpy). Population-based heuristic: maintains a
-pool of candidate parameter vectors, and evolves it generation by generation
-via selection + crossover + mutation, guided only by the objective value
-(sum-of-squared-errors between simulated and measured temperature) -- no
-gradient information used at all.
-
-This is the "baseline baseline": the standard evolutionary-optimization
-answer to a calibration problem, included as the most commonly reached-for
-metaheuristic in engineering practice (proposal, Section 5).
+Genetic Algorithm calibrator.
 """
 
 import time
@@ -46,18 +37,17 @@ def _run_ga(objective, lo, hi, rng, pop_size, n_generations, tournament_k=3, mut
 
         children = []
         while len(children) < pop_size - elitism:
-            # tournament selection (pick 2 parents, each the best of `tournament_k` random draws)
+
             parents = []
             for _ in range(2):
                 idx = rng.integers(0, pop_size, size=tournament_k)
                 parents.append(pop[idx[np.argmin(fitness[idx])]])
             p1, p2 = parents
 
-            # blend crossover (BLX-alpha)
             alpha = rng.uniform(0.0, 1.0, size=d)
             child = alpha * p1 + (1 - alpha) * p2
 
-            # gaussian mutation, scaled to the search range
+
             mutate_mask = rng.random(d) < 0.3
             sigma = mutation_sigma_frac * (hi - lo)
             child = np.where(mutate_mask, child + rng.normal(0.0, sigma), child)

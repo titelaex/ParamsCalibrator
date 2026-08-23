@@ -1,13 +1,5 @@
 """
-Particle Swarm Optimization calibrator -- a from-scratch, real-valued PSO
-(numpy only). A second, distinct population-based metaheuristic (proposal,
-Section 5): a swarm of particles moves through parameter space, each pulled
-towards its own best-ever position and the swarm's best-ever position, with
-inertia controlling how much of the previous velocity carries over.
-
-Included alongside GA specifically so the benchmark can show the ML model
-beating the whole family of population-based heuristics, not just one
-member of it.
+Particle Swarm Optimization calibrator.
 """
 
 import time

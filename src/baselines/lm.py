@@ -1,18 +1,9 @@
 """
 Levenberg-Marquardt calibrator (scipy.optimize.least_squares, method="lm").
 
-LM is classic nonlinear least-squares curve-fitting: given the *known* exact
-functional form of the physics (the ODE), it fits the free constant(s) to
-one new curve at a time, from scratch, via Gauss-Newton steps damped by a
-trust-region parameter that is adjusted each iteration. It is the natural
-"closest conceptual cousin" of the ML model (proposal, Section 5): both are
-nonlinear regressions, but LM re-derives the fit every single time while the
-MLP fits once, offline, over many curves, and then only evaluates.
-
 scipy's "lm" method does not support bounds (true classical LM is
 unconstrained), so the initial guess is drawn from the physically plausible
-range and the search is otherwise free to explore outside it -- exactly how
-an engineer would run curve_fit/least_squares in practice.
+range and the search is otherwise free to explore outside it.
 """
 
 import time

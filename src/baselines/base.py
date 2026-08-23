@@ -2,20 +2,10 @@
 Common interface shared by all baseline calibration methods (GA, PSO, LM,
 EKF, Bayesian Optimization).
 
-Every batch calibrator (all except EKF) solves the same nonlinear
-least-squares problem: given one run's noisy sensor trace (applied current,
-ambient temperature, measured winding/housing temperature), find the
-unknown physical constant(s) that make the physics simulator (RK4
-integration of the same ODEs used to generate the data) best reproduce the
-measured trace. EKF instead estimates the same unknowns sequentially, one
-sample at a time, by treating them as (near-)constant states in an
-augmented state vector.
-
-A calibrator never sees the ground-truth constant or the noise-free
+Note: A calibrator never sees the ground-truth constant or the noise-free
 temperature — only what a real sensor would provide: I(t), T_ambient, and
 noisy T(t). The initial condition T0 is likewise not given as ground truth;
-it defaults to the first noisy sample, since that is what a real
-calibration procedure would have to use too.
+it defaults to the first noisy sample.
 """
 
 from dataclasses import dataclass, field
@@ -41,15 +31,15 @@ class CalibrationResult:
 
     params: dict            # e.g. {"hA": 14.2} or {"hA": 14.2, "k_wh": 33.1}
     runtime_s: float        # wall-clock time for the whole calibration call
-    n_evals: int             # number of simulator evaluations used (cost proxy)
-    converged: bool = True   # method-specific success flag
-    history: np.ndarray | None = None  # optional (n_evals,) or (n_samples,) trace of estimates, for EKF/streaming plots
+    n_evals: int             # number of simulator evaluations used 
+    converged: bool = True   # success flag
+    history: np.ndarray | None = None  # optional (n_evals,) or (n_samples,) trace of estimates, for EKF plots
     extra: dict = field(default_factory=dict)
 
 
-# ---------------------------------------------------------------------------
+
 # Objective functions (shared by GA / PSO / LM / Bayesian Optimization)
-# ---------------------------------------------------------------------------
+
 
 def one_node_residuals(hA, t, I_t, T_measured, T_ambient, T0, R_winding=R_WINDING_OHM, C=C_LUMPED_J_PER_K):
     """Vector of (simulated - measured) residuals for a candidate hA. Used directly by LM.
@@ -90,9 +80,9 @@ def two_node_sse(
     return float(np.sum(r * r))
 
 
-# ---------------------------------------------------------------------------
+
 # Shared defaults
-# ---------------------------------------------------------------------------
+
 
 ONE_NODE_BOUNDS = HA_RANGE_W_PER_K
 TWO_NODE_BOUNDS = (HA_RANGE_W_PER_K, KWH_RANGE_W_PER_K)

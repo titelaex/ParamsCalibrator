@@ -1,5 +1,5 @@
 """
-Bayesian Optimization calibrator (scikit-optimize `gp_minimize`).
+Bayesian Optimization calibrator 
 
 Represents modern, sample-efficient, gradient-free calibration practice
 (proposal, Section 5): a Gaussian Process surrogate models the objective
