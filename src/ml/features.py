@@ -1,72 +1,6 @@
-r"""
+"""
 Physics-motivated feature extraction for the ML calibration model.
 
-The whole design rests on one observation (proposal, Section 6): the physics
-already gives closed-form estimators for the unknown constants, so the MLP
-should not be asked to rediscover thermodynamics from raw samples. Instead
-it is handed those analytical estimators as features and learns the more
-general, more robust version of the same relationship -- one that survives
-noise, short/incomplete windows, and non-steady-state operation where the
-closed forms degrade. That framing is also what makes the model explainable
-in the final presentation: it is not a black box, it is a learned
-correction on top of a known formula.
-
-Three families of estimator are used.
-
-1. Energy-balance (integral) estimators -- the strongest ones.
-   Integrating the 1-node ODE from 0 to an arbitrary t:
-
-       C * dT/dt = I(t)^2*R - hA*(T - T_amb)
-       => C*(T(t) - T(0)) = E(t) - hA * S(t)
-
-   where E(t) = INT_0^t P ds is the cumulative electrical energy injected
-   and S(t) = INT_0^t (T - T_amb) ds is the cumulative driving potential for
-   convection. Rearranged so that everything measurable sits on one side:
-
-       E(t) - C*T(t)  =  hA * S(t)  -  C*T(0)
-       \___________/        \___/       \____/
-         known u(t)         slope      intercept
-
-   so hA is recovered as the *slope of a straight-line fit* of u(t) against
-   S(t), over every sample in the window. Three things make this the
-   strongest feature available:
-
-   - It is algebraically exact for any load profile, not just a held step:
-     nothing here assumed steady state or a particular I(t) shape.
-   - It uses all N samples rather than just the endpoints, so sensor noise
-     is averaged down by the regression instead of entering through two
-     lone samples. Measured on the worst-case noise level in the dataset
-     (sigma = 2 K) this is ~3x more accurate than the endpoint form.
-   - The unknown initial temperature T(0) falls out as the fitted
-     intercept, so it never has to be read off a single noisy sample.
-
-   The 2-node model gets the same treatment twice. The winding-node balance
-   gives k_wh, and the two nodes summed (total energy in = energy stored in
-   both masses + energy lost to ambient) give hA without needing k_wh
-   first, which avoids propagating one estimate's error into the other:
-
-       E(t) - C_w*T_w(t)                =  k_wh * INT (T_w - T_h) ds  + const
-       E(t) - C_w*T_w(t) - C_h*T_h(t)   =  hA   * INT (T_h - T_amb) ds + const
-
-   Cumulative energy E(t) is accumulated with a zero-order hold on I,
-   matching the convention the simulator integrates under (see
-   src/simulator/motor_thermal.py), so no discretization mismatch is
-   introduced between how the data was made and how it is read back.
-
-2. Steady-state estimators -- exact only once the run has settled
-   (T_ss - T_amb = I^2*R / hA), degrading gracefully into a biased but
-   still informative feature when it has not.
-
-3. Shape descriptors -- 63% rise time (the standard first-order time
-   constant characterization, tau = C/hA), initial and final slopes (a
-   final slope still far from zero is precisely the signal that the
-   steady-state estimator should not be trusted), plus load statistics,
-   ambient temperature, and a noise-level proxy so the network can learn
-   how much to trust the rest.
-
-Every feature is finite-guarded and clipped to a physically sane range:
-a near-zero denominator (a run with almost no heating) would otherwise
-produce infinities that destroy training.
 """
 
 import numpy as np
@@ -80,10 +14,6 @@ from src.simulator.params import (
 
 _EPS = 1e-9
 
-# Clipping ranges for the analytical estimators. Deliberately much wider than
-# the generating ranges in params.py (hA 8-25, k_wh 15-60) so a genuinely
-# informative out-of-range estimate still reaches the network -- these only
-# exist to stop division-by-almost-zero from producing +-inf.
 _HA_CLIP = (0.0, 200.0)
 _KWH_CLIP = (0.0, 500.0)
 _TAU_CLIP = (0.0, 20000.0)
@@ -92,11 +22,6 @@ _TAU_CLIP = (0.0, 20000.0)
 def _edge_mean(x, frac=0.02):
     """Average of the first / last few samples, as a noise-reduced endpoint.
 
-    Only used for the *shape descriptor* features (rise, tau), where a small
-    averaging bias is harmless. The energy-balance estimators deliberately do
-    not use it -- on an oscillating duty-cycle trace, averaging the last 2%
-    of samples is not the same as the value at t_end, and that bias showed up
-    directly as a ~6% error in the recovered constant.
     """
     n = max(1, int(round(frac * x.shape[0])))
     return float(np.mean(x[:n])), float(np.mean(x[-n:]))
@@ -173,10 +98,6 @@ def _slope(t, T, lo_frac, hi_frac):
 def _tau_63(t, T):
     """Empirical time to reach 63.2% of the total temperature excursion.
 
-    For a first-order step response this is exactly tau = C/hA. For ramps
-    and duty cycles it is not, but it remains a monotone shape descriptor
-    that the network can calibrate against -- which is the entire point of
-    learning a correction rather than trusting the closed form.
     """
     T0, T_end = _edge_mean(T)
     span = T_end - T0
@@ -225,10 +146,6 @@ def extract_one_node_features(
 ) -> np.ndarray:
     """Feature vector for a single 1-node run. Returns (n_features,) float array.
 
-    Only quantities a real deployment would actually have are used: the time
-    grid, the commanded current, the noisy temperature trace, the ambient
-    temperature, and the independently-known constants R and C. The
-    ground-truth hA is never touched.
     """
     t = np.asarray(t, dtype=float)
     I = np.asarray(I, dtype=float)
@@ -364,7 +281,7 @@ def extract_two_node_features(
 
 
 # ---------------------------------------------------------------------------
-# Batch helpers: dataset dict (from src.simulator.data_generator) -> X, y
+# Batch helpers
 # ---------------------------------------------------------------------------
 
 def build_one_node_xy(data: dict, n_samples: int | None = None):

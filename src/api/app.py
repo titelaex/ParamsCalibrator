@@ -1,17 +1,4 @@
-"""
-FastAPI microservice wrapping the trained ML calibrator -- and, for
-comparison/demo purposes, every classical baseline -- behind one HTTP API.
 
-This is the "single forward pass" half of the project's central claim made
-concrete: POST a window of sensor data, get a calibrated constant back in
-low-single-digit milliseconds via the MLP, versus the hundreds of
-milliseconds to several seconds every classical baseline needs for the same
-window (see reports/benchmark_results/ for the measured numbers). Selecting
-`method` to a classical baseline is left available specifically so a live
-demo can show that latency gap request-for-request, rather than only citing
-the offline benchmark -- GA/PSO/BayesOpt genuinely take that long per call,
-which is itself part of the demo.
-"""
 
 import os
 
@@ -32,9 +19,7 @@ from src.ml.model import MLPCalibrator
 
 MODEL_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "models")
 
-# Mutable at runtime (populated at startup / by _load_models), not a
-# constant -- deliberately module-level rather than FastAPI app.state so
-# tests can call _load_models() directly without spinning up the app.
+
 _state = {"methods": {}, "models_loaded": {"one_node": False, "two_node": False}}
 
 

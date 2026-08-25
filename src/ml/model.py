@@ -2,43 +2,6 @@
 The ML calibration model: a small MLP over physics-motivated features
 (src/ml/features.py).
 
-Architecture follows the proposal (Section 6): features -> Dense(32, ReLU)
--> Dense(16, ReLU) -> one output unit per calibrated constant, MSE loss,
-Adam. Deliberately small -- the underlying physics is a smooth first/second
-order thermal response, not a hard pattern-recognition problem, so a heavy
-architecture would buy nothing and would be much harder to train well in the
-time available.
-
-Both inputs and targets are standardized. Targets especially: hA (8-25 W/K)
-and k_wh (15-60 W/K) live on different numeric scales, so an unnormalized
-MSE would silently weight k_wh errors ~6x more than hA errors just because
-its numbers are bigger. Standardizing y makes the loss weight both constants
-equally, which is what the benchmark's per-constant error metrics assume.
-
-Target parameterization ("anchored residual", the default) is the one design
-choice here that is not in the original proposal, and it came out of measured
-results rather than taste. Asking the network for the *absolute* constant
-made it slightly worse than the closed-form energy-balance estimator it is
-handed as a feature (test MAPE 4.5% vs 4.0% on the 1-node testbed) -- the
-network was spending its capacity re-deriving a formula it already had. Asking
-it instead for the *correction* to that estimator
-
-    hA_predicted = hA_energy_balance + net(features)          ("residual")
-    hA_predicted = hA_energy_balance * exp(net(features))     ("log_residual")
-
-makes the physics the default answer and learning the correction on top,
-which beat the closed form on both error metrics on both testbeds. This is
-exactly the framing the proposal argues for -- "a learned generalization of a
-known physical formula" -- just made literal in the architecture, and it also
-means a degenerate/untrained network degrades to the physics rather than to
-nonsense. Set `target_mode="raw"` to reproduce the unanchored variant.
-
-The class exposes `calibrate_one_node` / `calibrate_two_node` with the same
-signature and the same `CalibrationResult` return type as every classical
-baseline (src/baselines/), so the benchmark harness can treat the ML model
-as just another method. The headline difference shows up in the result
-object itself: `n_evals=0`, because a forward pass needs zero simulator
-rollouts, against the hundreds that GA/PSO need per calibration.
 """
 
 import time
@@ -65,16 +28,11 @@ from src.simulator.params import (
 )
 
 
-# Which feature is the closed-form physics estimator for each calibrated
-# constant. These are the anchors the network learns a correction to.
 ANCHOR_FEATURES = {
     "one_node": {"hA": "hA_energy_balance"},
     "two_node": {"hA": "hA_energy_balance", "k_wh": "k_wh_energy_balance"},
 }
 
-# Floor applied to an anchor before it is used as a multiplicative base, so a
-# degenerate run whose closed-form estimator collapsed to 0 (see _safe_div in
-# features.py) cannot produce log(0).
 _ANCHOR_FLOOR = 1.0
 
 

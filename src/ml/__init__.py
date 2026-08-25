@@ -1,12 +1,3 @@
-"""
-The ML calibration model: physics-motivated feature extraction
-(src/ml/features.py) feeding a small MLP (src/ml/model.py).
-
-`MLPCalibrator` exposes the same `calibrate_one_node` / `calibrate_two_node`
-interface as every classical baseline in src/baselines/, so the benchmark
-harness can run all six methods through identical code.
-"""
-
 from src.ml.features import (
     ONE_NODE_FEATURE_NAMES,
     ONE_NODE_TARGET_NAMES,
