@@ -89,6 +89,42 @@ curl -X POST http://localhost:8000/calibrate/one_node \
   -d '{"t": [0, 5, 10, ...], "I": [8, 8, 8, ...], "T_measured": [25.1, 25.4, ...], "T_ambient": 25.0}'
 ```
 
+With the server running, `http://localhost:8000/demo` serves a browser UI built for live demos.
+Press **Start the motor** and the run replays as an animation -- the plot reveals itself sample by
+sample while a little motor mascot heats up, glows and starts sweating in step with its own winding
+temperature -- then every ticked method is calibrated on that same window through the ordinary
+`/calibrate/...` endpoints.
+
+Two data sources:
+
+- **Held-out test set** -- a run from `data/motor_*_test.npz`: a virtual motor with constants the
+  models never saw during training. This is the honest accuracy story.
+- **Design a motor** -- you dial `hA` (and `k_wh`), the load profile and current, ambient, sensor
+  noise and run length; `/demo/synth/...` simulates that motor through the same physics used to
+  build the training set, and the calibrators have to recover the numbers you just chose. Dial
+  `hA = 18.5` and watching the MLP answer `18.56` in a few milliseconds is the most convincing
+  thirty seconds of the whole demo.
+
+**Motors in this batch** runs the same comparison over N motors instead of one (N different
+held-out runs, or N noise realisations of your own motor). The table then reports median and worst
+error per method, and an extra **Error spread** panel plots one dot per motor so the distribution
+is visible rather than a single lucky or unlucky draw.
+
+The other panels: **Thermogram** shows the measured channels, the noise-free truth dashed
+underneath, and the temperature curve each method's *estimated* constants predict, re-integrated
+through the simulator via `/demo/reconstruct/...` -- a bad calibration is visible as a curve peeling
+away from the sensor data. **Load profile** shows the driving current `I(t)`. **Latency race** is
+log-scale bars, where the MLP at single-digit milliseconds sits next to PSO/GA at tens of seconds.
+
+The header pills also report the window's SNR (`temperature rise x sqrt(n) / sensor noise`) as a
+rough guide -- a low-SNR window is one no method calibrates well, so it is worth a glance before
+demoing a run picked on the spot. Note that GA, PSO and BayesOpt genuinely take tens of seconds per
+request; leave them unticked (and keep the batch size small) unless the latency gap is the point.
+
+The held-out mode needs the generated datasets under `data/` (`scripts/generate_datasets.py`),
+which it reads through `/demo/sample/...` purely so it can score the answer -- the calibration
+endpoints themselves stay data-free.
+
 `method` defaults to `"mlp"` (the fast, offline-trained default) but can be set to any of `ga`,
 `pso`, `lm`, `ekf`, `bayesopt` -- useful for a live demo showing the same latency gap the
 benchmark measures offline, request for request. `GET /methods` lists every method's family,

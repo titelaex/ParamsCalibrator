@@ -67,6 +67,10 @@ def parse_args():
     p.add_argument("--n-robust", type=int, default=None, help="test runs for robustness (default 5, quick 2)")
     p.add_argument("--n-restarts", type=int, default=None, help="restarts per robustness run (default 5, quick 2)")
     p.add_argument("--n-sweep", type=int, default=None, help="test runs for window sweep (default 5, quick 2)")
+    p.add_argument("--replot", action="store_true",
+                   help="rebuild the figures from the raw CSVs already in reports/benchmark_results/, "
+                        "without re-running any calibration -- for fixing labels/styling without paying "
+                        "the 20-30 minute benchmark again")
     return p.parse_args()
 
 
@@ -124,6 +128,37 @@ def run_testbed(testbed, n_main, n_robust, n_restarts, n_sweep):
     }
 
 
+def load_testbed_results(testbed):
+    """Rebuild the aggregate tables from the raw CSVs a previous run saved.
+
+    Lets --replot redo the figures without repeating the (expensive) real
+    calibrations: every table plot_testbed_summary needs is a pure function
+    of rows already on disk.
+    """
+    paths = {
+        k: os.path.join(RESULTS_DIR, f"raw_{testbed}_{k}.csv")
+        for k in ("accuracy_speed", "robustness", "window_sweep")
+    }
+    missing = [p for p in paths.values() if not os.path.exists(p)]
+    if missing:
+        raise FileNotFoundError(
+            f"--replot needs the raw CSVs from a previous run; missing: {missing}. "
+            f"Run scripts/run_benchmark.py without --replot first."
+        )
+
+    df_main = pd.read_csv(paths["accuracy_speed"])
+    df_robust = pd.read_csv(paths["robustness"])
+    df_sweep = pd.read_csv(paths["window_sweep"])
+
+    return {
+        "df_main": df_main, "df_robust": df_robust, "df_sweep": df_sweep,
+        "acc": metrics.accuracy_table(df_main),
+        "speed": metrics.speed_table(df_main),
+        "robust": metrics.robustness_table(df_robust),
+        "update_cost": metrics.update_cost_table(df_main),
+    }
+
+
 # ---------------------------------------------------------------------------
 # Plotting
 # ---------------------------------------------------------------------------
@@ -153,6 +188,40 @@ def _bar(ax, methods, values, ylabel, log=False, fmt="{:.2f}"):
                 ha="center", va="bottom", fontsize=7, color=INK_SECONDARY)
 
 
+def _grouped_bar(ax, methods, series, ylabel, log=False, fmt="{:.2f}"):
+    """One bar per (method, constant). `series` is [(label, values), ...].
+
+    Used on the 2-node testbed, where reporting only hA would hide the result
+    that actually matters there: the two constants are not equally easy, and
+    the method that wins on one does not win on the other.
+    """
+    n = len(series)
+    width = 0.8 / n
+    x = np.arange(len(methods))
+    for j, (label, values) in enumerate(series):
+        offset = (j - (n - 1) / 2) * width
+        bars = ax.bar(
+            x + offset, values, width=width * 0.92,
+            color=[METHOD_COLORS[m] for m in methods],
+            hatch="" if j == 0 else "///",
+            edgecolor=SURFACE, linewidth=0.4, label=label,
+        )
+        for b, v in zip(bars, values):
+            ax.text(b.get_x() + b.get_width() / 2, b.get_height(), fmt.format(v),
+                    ha="center", va="bottom", fontsize=5.5, color=INK_SECONDARY)
+    _style_axes(ax, ylabel, log=log)
+    ax.set_xticks(x)
+    ax.set_xticklabels(methods, fontsize=8, color=INK_PRIMARY, rotation=20)
+    # grey legend swatches: the hatch distinguishes the constants, colour the method
+    handles = [
+        plt.Rectangle((0, 0), 1, 1, facecolor=BASELINE, hatch="" if j == 0 else "///",
+                      edgecolor=SURFACE, linewidth=0.4)
+        for j in range(n)
+    ]
+    ax.legend(handles, [lbl for lbl, _ in series], frameon=False, fontsize=6.5,
+              labelcolor=INK_SECONDARY, loc="upper left", handlelength=1.2)
+
+
 def plot_testbed_summary(testbed, result, out_path):
     methods = _ordered(result["acc"].index)
     acc, speed, robust = result["acc"], result["speed"], result["robust"]
@@ -161,23 +230,43 @@ def plot_testbed_summary(testbed, result, out_path):
     fig.suptitle(f"ParamsCalibrator benchmark -- {testbed} testbed", fontsize=12,
                 color=INK_PRIMARY, x=0.02, ha="left", fontweight="bold")
 
-    _bar(axes[0], methods, acc.loc[methods, "hA_mape_median"], "hA MAPE % (median)")
-    axes[0].set_title("1. Accuracy", fontsize=9, color=INK_PRIMARY, loc="left")
+    # every calibrated constant present in this testbed, in a stable order
+    targets = [c.removesuffix("_mape_median") for c in acc.columns if c.endswith("_mape_median")]
+
+    if len(targets) == 1:
+        _bar(axes[0], methods, acc.loc[methods, f"{targets[0]}_mape_median"],
+             f"{targets[0]} MAPE % (median)")
+    else:
+        _grouped_bar(axes[0], methods,
+                     [(t, acc.loc[methods, f"{t}_mape_median"]) for t in targets],
+                     "MAPE % (median)")
+    axes[0].set_title("Accuracy", fontsize=9, color=INK_PRIMARY, loc="left")
 
     _bar(axes[1], methods, speed.loc[methods, "runtime_ms_median"], "runtime, ms (log)", log=True, fmt="{:.1f}")
-    axes[1].set_title("2. Speed", fontsize=9, color=INK_PRIMARY, loc="left")
+    axes[1].set_title("Speed", fontsize=9, color=INK_PRIMARY, loc="left")
 
-    _bar(axes[2], methods, robust.loc[methods, "hA_success_rate"] * 100, "success rate % (<20% err)", fmt="{:.0f}")
-    axes[2].set_ylim(0, 115)
-    axes[2].set_title("3. Convergence robustness", fontsize=9, color=INK_PRIMARY, loc="left")
+    if len(targets) == 1:
+        _bar(axes[2], methods, robust.loc[methods, f"{targets[0]}_success_rate"] * 100,
+             "success rate % (<20% err)", fmt="{:.0f}")
+    else:
+        _grouped_bar(axes[2], methods,
+                     [(t, robust.loc[methods, f"{t}_success_rate"] * 100) for t in targets],
+                     "success rate % (<20% err)", fmt="{:.0f}")
+    axes[2].set_ylim(0, 125)
+    axes[2].set_title("Convergence robustness", fontsize=9, color=INK_PRIMARY, loc="left")
 
+    # Only hA here: one line per method per constant would be 12 overlapping
+    # lines. The title says so, rather than quietly showing half the picture.
     sweep_table = metrics.streaming_table(result["df_sweep"], target="hA")
     for m in _ordered(sweep_table.index):
         axes[3].plot(sweep_table.columns, sweep_table.loc[m], marker="o", markersize=3,
                     linewidth=1.6, color=METHOD_COLORS[m], label=m)
     _style_axes(axes[3], "hA MAPE % (median)", log=True)
     axes[3].set_xlabel("observation window fraction", color=INK_SECONDARY, fontsize=8)
-    axes[3].set_title("5. Streaming / partial-window accuracy", fontsize=9, color=INK_PRIMARY, loc="left")
+    sweep_title = "Streaming / partial-window accuracy"
+    if len(targets) > 1:
+        sweep_title += " (hA only)"
+    axes[3].set_title(sweep_title, fontsize=9, color=INK_PRIMARY, loc="left")
     axes[3].legend(frameon=False, fontsize=6.5, labelcolor=INK_SECONDARY, loc="upper right")
 
     fig.tight_layout(rect=[0, 0, 1, 0.90])
@@ -198,7 +287,11 @@ def main():
 
     results = {}
     for testbed in ("one_node", "two_node"):
-        results[testbed] = run_testbed(testbed, n_main, n_robust, n_restarts, n_sweep)
+        if args.replot:
+            print(f"replotting {testbed} from saved CSVs (no calibration re-run)")
+            results[testbed] = load_testbed_results(testbed)
+        else:
+            results[testbed] = run_testbed(testbed, n_main, n_robust, n_restarts, n_sweep)
         plot_testbed_summary(testbed, results[testbed],
                             os.path.join(FIGURES_DIR, f"benchmark_{testbed}.png"))
 

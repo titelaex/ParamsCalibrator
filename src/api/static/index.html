@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ParamsCalibrator - demo</title>
+<style>
+  :root {
+    --bg:#eef2f7; --panel:#ffffff; --panel2:#f8fafc; --line:#dbe3ed; --fg:#132033;
+    --muted:#5f7185; --accent:#00867c; --warn:#c2660a; --bad:#d33a48; --good:#1d8a4a;
+    --inset:#f1f5f9; --shadow:0 1px 2px rgba(19,32,51,.05), 0 6px 18px rgba(19,32,51,.06);
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:
+      radial-gradient(900px 500px at 12% -8%, #dceaf6 0%, transparent 62%),
+      radial-gradient(700px 420px at 96% -2%, #e6e6fa 0%, transparent 58%), var(--bg);
+    color:var(--fg); font:14px/1.5 "Segoe UI", system-ui, sans-serif;
+  }
+  header {
+    display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+    padding:14px 22px; border-bottom:1px solid var(--line);
+    background:rgba(255,255,255,.8); backdrop-filter:blur(8px); position:sticky; top:0; z-index:5;
+  }
+  h1 { margin:0; font-size:17px; letter-spacing:.4px; font-weight:650; }
+  h1 span { color:var(--accent); }
+  .tag { font-size:11px; color:var(--muted); border:1px solid var(--line);
+         background:var(--panel); padding:3px 9px; border-radius:99px; }
+  .live { display:flex; align-items:center; gap:6px; margin-left:auto; font-size:11px;
+          color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+  .dot { width:8px; height:8px; border-radius:50%; background:#c3ccd8; }
+  .dot.on { background:var(--accent); animation:pulse 1.6s infinite; }
+  @keyframes pulse { 0%{box-shadow:0 0 0 0 rgba(0,134,124,.45);} 70%{box-shadow:0 0 0 9px rgba(0,134,124,0);} 100%{box-shadow:0 0 0 0 rgba(0,134,124,0);} }
+
+  main { display:grid; grid-template-columns:274px minmax(0,1fr); gap:16px; padding:16px 22px 40px; }
+  .right { display:grid; gap:16px; min-width:0; }
+  .row-hero { display:grid; grid-template-columns:290px minmax(0,1fr); gap:16px; }
+  .row-3 { display:grid; grid-template-columns:repeat(2, minmax(0,1fr)); gap:16px; }
+  .row-3.batch { grid-template-columns:repeat(3, minmax(0,1fr)); }
+  @media (max-width:1150px){ .row-hero,.row-3,.row-3.batch{grid-template-columns:1fr;} main{grid-template-columns:1fr;} }
+
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:14px;
+           padding:14px; min-width:0; box-shadow:var(--shadow); }
+  .panel h2 { margin:0 0 10px; font-size:11px; letter-spacing:1.2px; text-transform:uppercase;
+              color:var(--muted); font-weight:650; display:flex; align-items:center; gap:8px; }
+  .panel h2 em { font-style:normal; color:#c3ccd8; }
+
+  label.f { display:block; font-size:10px; color:var(--muted); margin:14px 0 5px;
+            text-transform:uppercase; letter-spacing:1px; }
+  label.f:first-of-type { margin-top:0; }
+  select, input[type=number] { width:100%; padding:8px; background:var(--panel2); color:var(--fg);
+    border:1px solid var(--line); border-radius:8px; font-size:13px; }
+  input[type=range]{ width:100%; accent-color:var(--accent); }
+  .val { float:right; color:var(--fg); font-variant-numeric:tabular-nums; letter-spacing:0; }
+
+  .seg { display:grid; grid-template-columns:1fr 1fr; border:1px solid var(--line);
+         border-radius:9px; overflow:hidden; }
+  .seg button { padding:8px 6px; font-size:12px; background:var(--panel2); color:var(--muted);
+                border:0; cursor:pointer; }
+  .seg button.on { background:rgba(0,134,124,.12); color:var(--accent); font-weight:650; }
+
+  .methods { display:grid; grid-template-columns:1fr 1fr; gap:5px; }
+  .m { display:flex; align-items:center; gap:6px; font-size:12px; cursor:pointer;
+       padding:5px 7px; border:1px solid var(--line); border-radius:8px; background:var(--panel2); }
+  .m input { accent-color:var(--accent); margin:0; }
+  .m i { width:8px; height:8px; border-radius:2px; display:inline-block; }
+  button.go { width:100%; margin-top:16px; padding:11px; font-size:14px; font-weight:700;
+    background:linear-gradient(180deg,#00a396,#00867c); color:#ffffff; border:0;
+    border-radius:9px; cursor:pointer; box-shadow:0 2px 6px rgba(0,134,124,.28); }
+  button.go:disabled { opacity:.45; cursor:default; box-shadow:none; }
+  button.ghost { width:100%; margin-top:8px; padding:8px; font-size:12px; background:transparent;
+    color:var(--muted); border:1px solid var(--line); border-radius:8px; cursor:pointer; }
+  .hide { display:none; }
+
+  .pills { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+  .pill { font-size:11px; padding:4px 9px; border-radius:99px; border:1px solid var(--line);
+          color:var(--muted); background:var(--panel2); }
+  .pill b { color:var(--fg); font-weight:600; }
+  .pill.good{ border-color:rgba(29,138,74,.45); color:var(--good); background:rgba(29,138,74,.07); }
+  .pill.mid { border-color:rgba(194,102,10,.45); color:var(--warn); background:rgba(194,102,10,.07); }
+  .pill.bad { border-color:rgba(211,58,72,.45); color:var(--bad); background:rgba(211,58,72,.06); }
+  .pill.src { border-color:rgba(0,134,124,.45); color:var(--accent); background:rgba(0,134,124,.07); }
+
+  svg { display:block; width:100%; }
+  .legend { display:flex; flex-wrap:wrap; gap:12px; font-size:11px; color:var(--muted); margin-top:8px; }
+  .legend i { width:9px; height:9px; border-radius:2px; display:inline-block; margin-right:5px; }
+
+  .bot { text-align:center; }
+  .bot svg { height:206px; margin:0 auto; }
+  #fan { transform-origin:100px 42px; animation:spin var(--spin,3s) linear infinite; }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .bubble { margin-top:8px; background:var(--panel2); border:1px solid var(--line);
+            border-radius:10px; padding:9px 11px; font-size:12.5px; min-height:58px; text-align:left; }
+  .bubble b { color:var(--accent); }
+  .readout { display:flex; justify-content:center; gap:14px; margin-top:8px;
+             font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); }
+  .readout b { display:block; font-size:17px; color:var(--fg); font-weight:650; }
+
+  table { width:100%; border-collapse:collapse; font-variant-numeric:tabular-nums; }
+  th,td { text-align:right; padding:7px 6px; border-bottom:1px solid var(--line); font-size:12.5px; }
+  th:first-child,td:first-child { text-align:left; }
+  th { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:1px; }
+  td.name { display:flex; align-items:center; gap:7px; font-weight:600; }
+  td.name i { width:9px; height:9px; border-radius:2px; }
+  tr.pending td { color:var(--muted); }
+  .good{color:var(--good);} .mid{color:var(--warn);} .bad{color:var(--bad);}
+  .err { color:var(--bad); font-size:12px; margin-top:10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Params<span>Calibrator</span></h1>
+  <span class="tag">motor thermal constant calibration</span>
+  <span class="tag" id="modelsTag">&mdash;</span>
+  <div class="live"><span class="dot" id="liveDot"></span><span id="liveTxt">standby</span></div>
+</header>
+
+<main>
+  <!-- -------------------------------- controls ------------------------------- -->
+  <section class="panel">
+    <h2>Test bench</h2>
+
+    <label class="f" for="testbed">Thermal model</label>
+    <select id="testbed">
+      <option value="one_node">1-node (lumped) &mdash; hA</option>
+      <option value="two_node">2-node (winding+housing) &mdash; hA, k_wh</option>
+    </select>
+
+    <label class="f">Data source</label>
+    <div class="seg">
+      <button id="srcTest" class="on">Held-out test set</button>
+      <button id="srcSynth">Design a motor</button>
+    </div>
+
+    <div id="paneTest">
+      <label class="f" for="run">First run <span id="runMax"></span></label>
+      <input type="number" id="run" value="0" min="0" step="1">
+      <button class="ghost" id="dice">&#127922; pick at random</button>
+      <label class="f" for="window">Data window <span class="val" id="windowLabel">100%</span></label>
+      <input type="range" id="window" min="5" max="100" step="5" value="100">
+    </div>
+
+    <div id="paneSynth" class="hide">
+      <label class="f" for="sHA">hA (housing&rarr;ambient) <span class="val" id="sHALabel">15.0 W/K</span></label>
+      <input type="range" id="sHA" min="5" max="40" step="0.5" value="15">
+      <div id="kwhWrap" class="hide">
+        <label class="f" for="sKWH">k_wh (winding&rarr;housing) <span class="val" id="sKWHLabel">35.0 W/K</span></label>
+        <input type="range" id="sKWH" min="10" max="80" step="0.5" value="35">
+      </div>
+      <label class="f" for="sProfile">Load profile</label>
+      <select id="sProfile">
+        <option value="step">step (start &amp; hold)</option>
+        <option value="constant">constant</option>
+        <option value="duty_cycle">duty cycle (on/off)</option>
+        <option value="ramp">ramp</option>
+      </select>
+      <label class="f" for="sLevel">Load current <span class="val" id="sLevelLabel">8.0 A</span></label>
+      <input type="range" id="sLevel" min="0" max="20" step="0.5" value="8">
+      <label class="f" for="sAmb">Ambient <span class="val" id="sAmbLabel">25 &deg;C</span></label>
+      <input type="range" id="sAmb" min="0" max="45" step="1" value="25">
+      <label class="f" for="sNoise">Sensor noise <span class="val" id="sNoiseLabel">0.50 &deg;C</span></label>
+      <input type="range" id="sNoise" min="0" max="3" step="0.05" value="0.5">
+      <label class="f" for="sDur">Run length <span class="val" id="sDurLabel">3000 s</span></label>
+      <input type="range" id="sDur" min="300" max="6000" step="100" value="3000">
+    </div>
+
+    <label class="f" for="motors">Motors in this batch <span class="val" id="motorsLabel">1</span></label>
+    <input type="range" id="motors" min="1" max="25" step="1" value="1">
+
+    <label class="f">Competitors</label>
+    <div class="methods" id="methods"></div>
+
+    <button class="go" id="go">&#9654; Start the motor</button>
+    <button class="ghost" id="skip">calibrate now (skip animation)</button>
+    <div class="err" id="err"></div>
+  </section>
+
+  <div class="right">
+    <!-- --------------------------- robot + thermogram ------------------------ -->
+    <div class="row-hero">
+      <section class="panel bot">
+        <h2>The motor <em>|</em> <span id="botState">standby</span></h2>
+        <svg viewBox="0 0 200 200" id="botSvg">
+          <defs>
+            <radialGradient id="glow">
+              <stop offset="0%" id="glowIn" stop-color="#d33a48" stop-opacity=".5"/>
+              <stop offset="100%" stop-color="#d33a48" stop-opacity="0"/>
+            </radialGradient>
+            <linearGradient id="bodyGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" id="bodyTop" stop-color="#5b9bd5"/>
+              <stop offset="100%" id="bodyBot" stop-color="#3a6ea5"/>
+            </linearGradient>
+          </defs>
+          <circle id="heatGlow" cx="100" cy="115" r="78" fill="url(#glow)" opacity="0"/>
+          <g id="fan">
+            <circle cx="100" cy="42" r="17" fill="#f1f5f9" stroke="#93a3b5" stroke-width="2"/>
+            <g fill="#93a3b5">
+              <path d="M100 42 L100 27 Q104 34 100 42Z"/>
+              <path d="M100 42 L113 50 Q105 51 100 42Z"/>
+              <path d="M100 42 L87 50 Q95 51 100 42Z"/>
+            </g>
+            <circle cx="100" cy="42" r="4" fill="#5f7185"/>
+          </g>
+          <rect x="96" y="52" width="8" height="10" fill="#93a3b5"/>
+          <g stroke="#93a3b5" stroke-width="4" stroke-linecap="round">
+            <path d="M34 84 H26"/><path d="M34 100 H26"/><path d="M34 116 H26"/><path d="M34 132 H26"/>
+            <path d="M166 84 H174"/><path d="M166 100 H174"/><path d="M166 116 H174"/><path d="M166 132 H174"/>
+          </g>
+          <rect id="botBody" x="34" y="62" width="132" height="104" rx="22"
+                fill="url(#bodyGrad)" stroke="#7f93a8" stroke-width="2"/>
+          <rect x="46" y="74" width="108" height="62" rx="14" fill="#16273c" opacity=".88"/>
+          <g id="face">
+            <circle cx="78" cy="103" r="13" fill="#0d1a29"/>
+            <circle cx="122" cy="103" r="13" fill="#0d1a29"/>
+            <circle id="pupL" cx="78" cy="103" r="6" fill="#3ee0d0"/>
+            <circle id="pupR" cx="122" cy="103" r="6" fill="#3ee0d0"/>
+            <path id="mouth" d="M84 126 Q100 134 116 126" fill="none"
+                  stroke="#3ee0d0" stroke-width="3.5" stroke-linecap="round"/>
+          </g>
+          <g id="sweat" opacity="0" fill="#38bdf8">
+            <path d="M150 84 q6 9 0 12 q-6-3 0-12Z"/>
+            <path d="M50 92 q6 9 0 12 q-6-3 0-12Z"/>
+          </g>
+          <rect x="54" y="166" width="18" height="12" rx="4" fill="#7f93a8"/>
+          <rect x="128" y="166" width="18" height="12" rx="4" fill="#7f93a8"/>
+        </svg>
+        <div class="readout">
+          <div>temperature<b id="roT">&mdash;</b></div>
+          <div>current<b id="roI">&mdash;</b></div>
+        </div>
+        <div class="bubble" id="bubble">Pick a motor and hit <b>Start the motor</b>.</div>
+      </section>
+
+      <section class="panel">
+        <h2>Thermogram <em>|</em> sensor data vs. reconstructed physics</h2>
+        <div class="pills" id="pills"></div>
+        <svg id="thermo" viewBox="0 0 720 300"></svg>
+        <div class="legend" id="legThermo"></div>
+      </section>
+    </div>
+
+    <!-- ------------------------ load / race / spread ------------------------- -->
+    <div class="row-3" id="row3">
+      <section class="panel">
+        <h2>Load profile <em>|</em> I(t)</h2>
+        <svg id="curr" viewBox="0 0 320 180"></svg>
+      </section>
+      <section class="panel">
+        <h2>Latency race <em>|</em> log scale</h2>
+        <svg id="race" viewBox="0 0 320 180"></svg>
+      </section>
+      <section class="panel hide" id="spreadPanel">
+        <h2>Error spread <em>|</em> <span id="spreadSub">across the batch</span></h2>
+        <svg id="spread" viewBox="0 0 320 180"></svg>
+      </section>
+    </div>
+
+    <section class="panel">
+      <h2>Results</h2>
+      <table>
+        <thead><tr id="head"><th>Method</th></tr></thead>
+        <tbody id="rows"><tr><td style="color:var(--muted)">Nobody has run yet.</td></tr></tbody>
+      </table>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+const COLORS = { mlp:"#00867c", lm:"#c2660a", ekf:"#3b6fd4", pso:"#8b5cf6", ga:"#d33a48", bayesopt:"#3f8f3f" };
+const ORDER  = ["mlp","lm","ekf","pso","ga","bayesopt"];
+/** Every colour the generated SVG uses, so the theme lives in one place. */
+const P = { grid:"#e3e9f0", axis:"#5f7185", inset:"#f1f5f9", text:"#132033",
+            meas:["#132033","#7c8ea3"], truth:"#9aa9bb", load:"#c2660a", band:"#1d8a4a" };
+const MIN_SPAN_C = 10;
+const PLAY_MS = 3200;
+
+let source = "test";     // "test" | "synth"
+let runs = [];           // [{ sample, results:{ method:{params,runtime_ms,n_evals,curve,error} } }]
+let sample = null;       // runs[0].sample -- the motor the charts show
+let revealTo = null, busy = false;
+
+/* -------------------------------- helpers -------------------------------- */
+
+async function api(url, opts) {
+  const r = await fetch(url, opts);
+  const b = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(b.detail || (r.status + " " + r.statusText));
+  return b;
+}
+const lerp = (a,b,f) => a + (b-a)*f;
+const median = a => { const s = [...a].sort((x,y) => x-y); const m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; };
+function mixHex(c1, c2, f) {
+  const p = h => [1,3,5].map(i => parseInt(h.slice(i,i+2),16));
+  const [r1,g1,b1] = p(c1), [r2,g2,b2] = p(c2);
+  const h2 = v => Math.round(v).toString(16).padStart(2,"0");
+  return "#" + h2(lerp(r1,r2,f)) + h2(lerp(g1,g2,f)) + h2(lerp(b1,b2,f));
+}
+const heatColor = f => f < .5 ? mixHex("#5b9bd5","#e8a13c",f/.5) : mixHex("#e8a13c","#d33a48",(f-.5)/.5);
+const fmtMs = ms => ms >= 1000 ? (ms/1000).toFixed(2)+" s" : ms.toFixed(1)+" ms";
+function setLive(txt, on) { $("liveTxt").textContent = txt; $("liveDot").className = "dot" + (on?" on":""); }
+const chosen = () => [...document.querySelectorAll("#methods input:checked")].map(c => c.value);
+const nMotors = () => +$("motors").value;
+const svgHint = txt => `<text x="50%" y="50%" fill="#a8b4c3" font-size="11" text-anchor="middle">${txt}</text>`;
+
+/* ----------------------------- run description --------------------------- */
+
+function channels() {
+  return sample.testbed === "one_node"
+    ? [{ meas:"T_measured", truth:"T_true", lbl:"winding" }]
+    : [{ meas:"T_w_measured", truth:"T_w_true", lbl:"winding" },
+       { meas:"T_h_measured", truth:"T_h_true", lbl:"housing" }];
+}
+
+/** How much signal the window holds: the real temperature rise against sensor
+ *  noise, taken over the whole window rather than per sample -- a calibrator
+ *  sees all n samples at once and averaging beats white noise down by sqrt(n).
+ *  A rough guide for picking a run, not a prediction of the error. */
+function snr(s) {
+  s = s || sample;
+  const truth = s[s.testbed === "one_node" ? "T_true" : "T_w_true"];
+  const rise = Math.max(...truth) - truth[0];
+  const ratio = rise * Math.sqrt(truth.length) / Math.max(s.noise_std, 1e-9);
+  const cls = ratio >= 20 ? "good" : ratio >= 5 ? "mid" : "bad";
+  return { rise, ratio, cls, verdict: ratio >= 20 ? "good signal" : ratio >= 5 ? "marginal signal" : "weak signal" };
+}
+
+function drawPills() {
+  const q = snr(), n = runs.length;
+  $("pills").innerHTML =
+    `<span class="pill src">${source === "test" ? "held-out test set" : "your motor, simulated"}</span>` +
+    (n > 1 ? `<span class="pill">batch of <b>${n}</b> motors &middot; showing #1</span>` : "") +
+    Object.entries(sample.true_params).map(([k,v]) => `<span class="pill">${k} true <b>${v.toFixed(2)}</b> W/K</span>`).join("") +
+    `<span class="pill">ambient <b>${sample.T_ambient.toFixed(1)}&deg;C</b></span>` +
+    `<span class="pill">noise <b>&plusmn;${sample.noise_std.toFixed(2)}&deg;C</b></span>` +
+    `<span class="pill">window <b>${sample.n_samples}</b> samples</span>` +
+    `<span class="pill ${q.cls}">SNR <b>${q.ratio.toFixed(0)}</b> &middot; ${q.verdict}</span>`;
+}
+
+/* ------------------------------- thermogram ------------------------------ */
+
+function drawThermo() {
+  if (!sample) return;
+  const W = 720, H = 300, PL = 40, PB = 26, PT = 10, PR = 12;
+  const chans = channels().map(c => ({ y:sample[c.meas], yt:sample[c.truth], lbl:c.lbl }));
+  const res = runs.length ? runs[0].results : {};
+  const fits = Object.values(res).filter(r => r.curve).flatMap(r => r.curve.flat());
+  const all = chans.flatMap(c => c.y.concat(c.yt)).concat(fits).concat([sample.T_ambient]).filter(Number.isFinite);
+  let lo = Math.min(...all), hi = Math.max(...all);
+  // Without this floor the auto-scale turns a 2 degC rise into a dramatic
+  // climb -- the real amplitude has to read as the real amplitude.
+  if (hi - lo < MIN_SPAN_C) { const m = (lo+hi)/2; lo = m - MIN_SPAN_C/2; hi = m + MIN_SPAN_C/2; }
+  const pad = (hi-lo)*.08, y0 = lo-pad, y1 = hi+pad;
+
+  const t = sample.t, n = t.length, span = (t[n-1]-t[0]) || 1;
+  const X = i => PL + (W-PL-PR)*(t[i]-t[0])/span;
+  const Y = v => H-PB - (H-PB-PT)*(v-y0)/(y1-y0);
+  const upto = revealTo === null ? n : Math.max(2, revealTo+1);
+  const path = (arr,k) => arr.slice(0,k).map((v,i) => (i?"L":"M")+X(i).toFixed(1)+","+Y(v).toFixed(1)).join("");
+
+  let s = "";
+  for (const f of [0,.25,.5,.75,1]) {
+    const v = y0 + f*(y1-y0);
+    s += `<line x1="${PL}" x2="${W-PR}" y1="${Y(v)}" y2="${Y(v)}" stroke="${P.grid}"/>` +
+         `<text x="${PL-6}" y="${Y(v)+4}" fill="${P.axis}" font-size="10" text-anchor="end">${v.toFixed(1)}</text>`;
+  }
+  chans.forEach((c,i) => {
+    s += `<path d="${path(c.yt,upto)}" fill="none" stroke="${P.truth}" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  });
+  for (const [name,r] of Object.entries(res)) {
+    if (!r.curve) continue;
+    r.curve.forEach(arr => {
+      s += `<path d="${path(arr,upto)}" fill="none" stroke="${COLORS[name]}" stroke-width="2" opacity=".9"/>`;
+    });
+  }
+  chans.forEach((c,i) => {
+    s += `<path d="${path(c.y,upto)}" fill="none" stroke="${P.meas[i]}" stroke-width="1.5" opacity=".8"/>`;
+  });
+  if (revealTo !== null && revealTo < n-1) {
+    const x = X(revealTo);
+    s += `<line x1="${x}" x2="${x}" y1="${PT}" y2="${H-PB}" stroke="${COLORS.mlp}" stroke-width="1.5" opacity=".7"/>`;
+    chans.forEach((c,i) => { s += `<circle cx="${x}" cy="${Y(c.y[revealTo])}" r="4" fill="${P.meas[i]}"/>`; });
+  }
+  s += `<text x="${PL}" y="${H-6}" fill="${P.axis}" font-size="10">0 s</text>` +
+       `<text x="${W-PR}" y="${H-6}" fill="${P.axis}" font-size="10" text-anchor="end">${t[n-1].toFixed(0)} s</text>`;
+  $("thermo").innerHTML = s;
+
+  $("legThermo").innerHTML =
+    chans.map((c,i) => `<span><i style="background:${P.meas[i]}"></i>${c.lbl} measured</span>`).join("") +
+    `<span><i style="background:${P.truth}"></i>dashed = truth, noise-free</span>` +
+    Object.keys(res).filter(k => res[k].curve)
+      .map(k => `<span><i style="background:${COLORS[k]}"></i>${k.toUpperCase()} reconstructed</span>`).join("");
+}
+
+/* ------------------------------ load profile ----------------------------- */
+
+function drawCurrent() {
+  if (!sample) return;
+  const W = 320, H = 180, PL = 28, PB = 20, PT = 10, PR = 8;
+  const I = sample.I, t = sample.t, n = t.length;
+  const hi = Math.max(...I, 1)*1.15, span = (t[n-1]-t[0]) || 1;
+  const X = i => PL + (W-PL-PR)*(t[i]-t[0])/span;
+  const Y = v => H-PB - (H-PB-PT)*v/hi;
+  const upto = revealTo === null ? n : Math.max(2, revealTo+1);
+
+  let s = "";
+  for (const f of [0,.5,1]) {
+    const v = f*hi;
+    s += `<line x1="${PL}" x2="${W-PR}" y1="${Y(v)}" y2="${Y(v)}" stroke="${P.grid}"/>` +
+         `<text x="${PL-5}" y="${Y(v)+4}" fill="${P.axis}" font-size="9" text-anchor="end">${v.toFixed(0)}</text>`;
+  }
+  const pts = I.slice(0,upto).map((v,i) => X(i).toFixed(1)+","+Y(v).toFixed(1)).join(" ");
+  s += `<polygon points="${PL},${Y(0)} ${pts} ${X(upto-1).toFixed(1)},${Y(0)}" fill="${P.load}" opacity=".14"/>` +
+       `<polyline points="${pts}" fill="none" stroke="${P.load}" stroke-width="1.8"/>`;
+  if (revealTo !== null && revealTo < n-1) s += `<circle cx="${X(revealTo)}" cy="${Y(I[revealTo])}" r="4" fill="${P.load}"/>`;
+  s += `<text x="${PL}" y="${H-5}" fill="${P.axis}" font-size="9">amps</text>`;
+  $("curr").innerHTML = s;
+}
+
+/* ------------------------------ latency race ----------------------------- */
+
+const okRuns = name => runs.filter(r => r.results[name] && r.results[name].params);
+
+function drawRace() {
+  const W = 320, H = 180, PL = 66, PR = 42, PT = 14;
+  const names = chosen().filter(n => okRuns(n).length);
+  if (!names.length) { $("race").innerHTML = svgHint("milliseconds show up after the race"); return; }
+  const ms = {}; names.forEach(n => ms[n] = median(okRuns(n).map(r => r.results[n].runtime_ms)));
+  const maxMs = Math.max(...Object.values(ms), 10);
+  const bh = Math.min(24, (H-PT-10)/names.length - 6);
+  const L = v => Math.log10(1+Math.max(v,.05)) / Math.log10(1+maxMs);
+  const fastest = names.reduce((a,b) => ms[a] <= ms[b] ? a : b);
+
+  let s = "";
+  names.forEach((name,i) => {
+    const y = PT + i*(bh+6), w = Math.max(3,(W-PL-PR)*L(ms[name]));
+    s += `<text x="${PL-8}" y="${y+bh/2+4}" fill="${COLORS[name]}" font-size="10.5" text-anchor="end" font-weight="600">${name.toUpperCase()}</text>` +
+         `<rect x="${PL}" y="${y}" width="${W-PL-PR}" height="${bh}" rx="4" fill="${P.inset}"/>` +
+         `<rect x="${PL}" y="${y}" width="${w.toFixed(1)}" height="${bh}" rx="4" fill="${COLORS[name]}" opacity=".85"/>` +
+         `<text x="${W-PR+5}" y="${y+bh/2+4}" fill="${P.text}" font-size="10">${fmtMs(ms[name])}</text>`;
+    if (name === fastest) s += `<text x="${PL+6}" y="${y+bh/2+4}" font-size="11">&#127942;</text>`;
+  });
+  $("race").innerHTML = s;
+}
+
+/* ------------------------------ error spread ----------------------------- */
+
+function errPct(r, name, k) {
+  const res = r.results[name];
+  if (!res || !res.params || res.params[k] === undefined) return null;
+  return Math.abs(res.params[k] - r.sample.true_params[k]) / Math.abs(r.sample.true_params[k]) * 100;
+}
+
+/** One dot per motor per method: how the error is distributed across the whole
+ *  batch, which a single run simply cannot show. */
+function drawSpread() {
+  const W = 320, H = 180, PL = 62, PR = 34, PT = 16, MAXP = 60;
+  const key = Object.keys(sample.true_params)[0];
+  const names = chosen().filter(n => okRuns(n).length);
+  if (!names.length) { $("spread").innerHTML = svgHint("run a batch to see the spread"); return; }
+  const rowH = Math.min(30, (H-PT-14)/names.length);
+  const X = p => PL + (W-PL-PR)*Math.min(p,MAXP)/MAXP;
+
+  let s = `<text x="${PL}" y="${H-4}" fill="${P.axis}" font-size="9">0%</text>` +
+          `<text x="${X(MAXP)}" y="${H-4}" fill="${P.axis}" font-size="9" text-anchor="end">&ge;${MAXP}%</text>` +
+          `<text x="${(PL+X(MAXP))/2}" y="${H-4}" fill="${P.axis}" font-size="9" text-anchor="middle">${key} error</text>`;
+  names.forEach((name,i) => {
+    const y = PT + i*rowH + rowH/2;
+    const errs = runs.map(r => errPct(r,name,key)).filter(v => v !== null);
+    if (!errs.length) return;
+    s += `<text x="${PL-8}" y="${y+4}" fill="${COLORS[name]}" font-size="10.5" text-anchor="end" font-weight="600">${name.toUpperCase()}</text>` +
+         `<rect x="${PL}" y="${y-7}" width="${X(5)-PL}" height="14" fill="${P.band}" opacity=".14"/>` +
+         `<line x1="${PL}" x2="${X(MAXP)}" y1="${y}" y2="${y}" stroke="${P.grid}"/>`;
+    errs.forEach(e => {
+      s += `<circle cx="${X(e)}" cy="${y}" r="4" fill="${COLORS[name]}" opacity="${e > MAXP ? .35 : .7}"><title>${e.toFixed(1)}%</title></circle>`;
+    });
+    const md = median(errs);
+    s += `<line x1="${X(md)}" x2="${X(md)}" y1="${y-9}" y2="${y+9}" stroke="${P.text}" stroke-width="1.6"><title>median ${md.toFixed(1)}%</title></line>` +
+         `<text x="${X(MAXP)+4}" y="${y+4}" fill="${P.text}" font-size="9.5">${md.toFixed(1)}%</text>`;
+  });
+  $("spread").innerHTML = s;
+}
+
+/* --------------------------------- robot --------------------------------- */
+
+function setBot(o) {
+  if (o.heat !== undefined) {
+    const f = Math.max(0, Math.min(1, o.heat)), c = heatColor(f);
+    $("bodyTop").setAttribute("stop-color", c);
+    $("bodyBot").setAttribute("stop-color", mixHex(c,"#2b3a4d",.42));
+    $("glowIn").setAttribute("stop-color", c);
+    $("heatGlow").setAttribute("opacity",(f*.6).toFixed(2));
+    $("sweat").setAttribute("opacity", f > .55 ? ((f-.55)/.45).toFixed(2) : 0);
+  }
+  if (o.current !== undefined) {
+    const spin = o.current <= .05 ? 6 : Math.max(.18, 2.2/(o.current/2 + .4));
+    $("botSvg").style.setProperty("--spin", spin.toFixed(2)+"s");
+  }
+  if (o.mood) {
+    const m = { happy:"M82 124 Q100 138 118 124", flat:"M83 128 H117",
+                sad:"M82 132 Q100 120 118 132", think:"M84 128 Q94 122 104 128" }[o.mood];
+    const col = { happy:"#4ade80", flat:"#9aa9bb", sad:"#ff8a94", think:"#3ee0d0" }[o.mood];
+    $("mouth").setAttribute("d", m); $("mouth").setAttribute("stroke", col);
+    $("pupL").setAttribute("fill", col); $("pupR").setAttribute("fill", col);
+  }
+  if (o.look !== undefined) {
+    const dx = lerp(-4, 4, Math.max(0, Math.min(1, o.look)));
+    $("pupL").setAttribute("cx", 78+dx); $("pupR").setAttribute("cx", 122+dx);
+  }
+  if (o.say !== undefined) $("bubble").innerHTML = o.say;
+  if (o.state) $("botState").textContent = o.state;
+  if (o.T !== undefined) $("roT").textContent = o.T === null ? "—" : o.T.toFixed(1)+" °C";
+  if (o.I !== undefined) $("roI").textContent = o.I === null ? "—" : o.I.toFixed(1)+" A";
+}
+
+/* -------------------------------- loading -------------------------------- */
+
+async function loadMethods() {
+  const { methods } = await api("/methods");
+  const names = ORDER.filter(n => n in methods).concat(Object.keys(methods).filter(n => !ORDER.includes(n)));
+  $("methods").innerHTML = names.map(n =>
+    `<label class="m" title="${methods[n].family}">
+       <input type="checkbox" value="${n}" ${["mlp","lm","ekf"].includes(n)?"checked":""}>
+       <i style="background:${COLORS[n]||"#9aa9bb"}"></i>${n.toUpperCase()}</label>`).join("");
+  const h = await api("/health");
+  const on = Object.entries(h.models_loaded).filter(([,v]) => v).map(([k]) => k);
+  $("modelsTag").textContent = on.length ? "MLP loaded: "+on.join(", ") : "MLP not loaded";
+}
+
+/** Motor #i of the batch. In test-set mode that is the i-th held-out run; when
+ *  you design the motor, the constants stay put and only the noise seed moves,
+ *  so a batch shows the spread of the estimate under sensor noise alone. */
+async function fetchMotor(i) {
+  const tb = $("testbed").value;
+  if (source === "test") {
+    const idx = (+$("run").value + i) % (+$("run").max + 1);
+    return api(`/demo/sample/${tb}?index=${idx}&window=${+$("window").value/100}`);
+  }
+  const qs = new URLSearchParams({
+    hA:$("sHA").value, k_wh:$("sKWH").value, T_ambient:$("sAmb").value,
+    noise_std:$("sNoise").value, profile:$("sProfile").value,
+    level:$("sLevel").value, duration:$("sDur").value, seed:i,
+  });
+  return api(`/demo/synth/${tb}?${qs}`);
+}
+
+async function loadPreview() {
+  const s = await fetchMotor(0);
+  runs = [{ sample:s, results:{} }];
+  sample = s; revealTo = null;
+  drawPills(); drawThermo(); drawCurrent(); drawRace(); drawSpread();
+  const q = snr();
+  const who = source === "test" ? `Held-out run ${sample.index}` : "Your motor";
+  setBot({ heat:0, current:0, mood:"flat", look:.5, state:"standby", T:null, I:null,
+    say: q.ratio < 5
+      ? `${who}: this window is <b>weak</b> (SNR ${q.ratio.toFixed(0)}). I only warm up ${q.rise.toFixed(1)}&deg;C — that is hard on every method.`
+      : `${who}: I warm up by <b>${q.rise.toFixed(1)}&deg;C</b> over ${sample.n_samples} samples. Ready when you are!` });
+  $("rows").innerHTML = `<tr><td style="color:var(--muted)">Nobody has run yet.</td></tr>`;
+}
+
+/* -------------------------------- playback ------------------------------- */
+
+function play() {
+  return new Promise(resolve => {
+    const T = sample[channels()[0].meas], I = sample.I, n = T.length;
+    const t0 = T[0], spanT = Math.max(2, Math.max(...T)-t0);
+    setBot({ mood:"flat", state:"under load" });
+    const start = performance.now();
+    // Progress comes from the clock, and the next frame is only requested via
+    // rAF while the tab is visible: rAF is paused in background tabs, and
+    // without this fallback the demo freezes (button stuck disabled) if the
+    // presenter switches to their slides mid-run.
+    const next = fn => (document.hidden ? setTimeout(() => fn(performance.now()), 40)
+                                        : requestAnimationFrame(fn));
+    function frame(now) {
+      const p = Math.min(1,(now-start)/PLAY_MS), i = Math.min(n-1, Math.floor(p*(n-1)));
+      revealTo = i; drawThermo(); drawCurrent();
+      setBot({ heat:(T[i]-t0)/spanT, current:I[i], look:p, T:T[i], I:I[i],
+               mood:(T[i]-t0)/spanT > .6 ? "sad" : "flat" });
+      if (p < 1) next(frame);
+      else { revealTo = null; drawThermo(); drawCurrent(); resolve(); }
+    }
+    next(frame);
+  });
+}
+
+/* ------------------------------- calibration ----------------------------- */
+
+function payload(s, method) {
+  const b = { t:s.t, I:s.I, T_ambient:s.T_ambient, method };
+  return s.testbed === "one_node"
+    ? Object.assign(b, { T_measured:s.T_measured })
+    : Object.assign(b, { T_w_measured:s.T_w_measured, T_h_measured:s.T_h_measured });
+}
+
+function renderTable(names) {
+  const keys = Object.keys(sample.true_params);
+  const batch = runs.length > 1;
+  $("head").innerHTML = "<th>Method</th>" + (batch
+    ? keys.map(k => `<th>${k} median err</th><th>worst</th>`).join("") + "<th>median latency</th><th>motors</th>"
+    : keys.map(k => `<th>${k}</th><th>error</th>`).join("") + "<th>latency</th><th>evals</th>");
+
+  const scoreOf = n => { const e = runs.map(r => errPct(r,n,keys[0])).filter(v => v!==null);
+                         return e.length ? median(e) : Infinity; };
+  const best = names.slice().sort((a,b) => scoreOf(a)-scoreOf(b))[0];
+
+  $("rows").innerHTML = names.map(n => {
+    const cell = `<td class="name"><i style="background:${COLORS[n]}"></i>${n.toUpperCase()}` +
+                 (n === best && scoreOf(n) < Infinity ? ' <span>&#127919;</span>' : "") + "</td>";
+    const span = keys.length*2 + 2;
+    const done = okRuns(n);
+    const failed = runs.filter(r => r.results[n] && r.results[n].error);
+    if (!done.length && failed.length) return `<tr>${cell}<td colspan="${span}" class="bad">${failed[0].results[n].error}</td></tr>`;
+    if (!done.length) return `<tr class="pending">${cell}<td colspan="${span}">${runs.some(r => r.results[n]) ? "running…" : "at the line…"}</td></tr>`;
+
+    const cells = keys.map(k => {
+      const e = runs.map(r => errPct(r,n,k)).filter(v => v!==null);
+      if (!e.length) return "<td>&mdash;</td><td>&mdash;</td>";
+      if (batch) {
+        const md = median(e), wo = Math.max(...e);
+        return `<td class="${md < 5 ? "good" : md < 20 ? "mid" : "bad"}">${md.toFixed(1)}%</td><td>${wo.toFixed(1)}%</td>`;
+      }
+      const est = done[0].results[n].params[k];
+      return `<td>${est.toFixed(2)}</td><td class="${e[0] < 5 ? "good" : e[0] < 20 ? "mid" : "bad"}">${e[0].toFixed(1)}%</td>`;
+    }).join("");
+    const lat = median(done.map(r => r.results[n].runtime_ms));
+    const tail = batch ? `<td>${fmtMs(lat)}</td><td>${done.length}/${runs.length}</td>`
+                       : `<td>${fmtMs(lat)}</td><td>${done[0].results[n].n_evals}</td>`;
+    return `<tr>${cell}${cells}${tail}</tr>`;
+  }).join("");
+}
+
+async function calibrate(names) {
+  const batch = runs.length > 1;
+  setBot({ mood:"think", state:"calibrating", look:.5, say:"Let's see who reads my constants right…" });
+
+  for (let i = 0; i < runs.length; i++) {
+    const r = runs[i];
+    if (batch) setBot({ say:`Motor <b>${i+1}/${runs.length}</b> on the bench…` });
+    for (const n of names) {
+      try {
+        const res = await api("/calibrate/" + r.sample.testbed, {
+          method:"POST", headers:{ "Content-Type":"application/json" },
+          body:JSON.stringify(payload(r.sample, n)),
+        });
+        r.results[n] = { params:res.params, runtime_ms:res.runtime_ms, n_evals:res.n_evals };
+        // The curve those estimated constants predict -- only for the motor on screen.
+        if (i === 0) {
+          try {
+            const s = r.sample;
+            const T0 = s.testbed === "one_node" ? [s.T_measured[0]] : [s.T_w_measured[0], s.T_h_measured[0]];
+            const body = { t:s.t, I:s.I, T_ambient:s.T_ambient, T0, hA:res.params.hA };
+            if (res.params.k_wh !== undefined) body.k_wh = res.params.k_wh;
+            const rc = await api(`/demo/reconstruct/${s.testbed}`, {
+              method:"POST", headers:{ "Content-Type":"application/json" }, body:JSON.stringify(body) });
+            r.results[n].curve = rc.T ? [rc.T] : [rc.T_w, rc.T_h];
+            drawThermo();
+          } catch (e) { /* the overlay is optional; the numbers still stand */ }
+        }
+      } catch (e) {
+        r.results[n] = { error:e.message };
+      }
+      renderTable(names); drawRace(); drawSpread();
+    }
+  }
+
+  const keys = Object.keys(sample.true_params);
+  const scored = names.map(n => ({ n, e:runs.map(r => errPct(r,n,keys[0])).filter(v => v!==null) }))
+                      .filter(o => o.e.length);
+  if (!scored.length) { setBot({ mood:"sad", state:"failed", say:"No method came back with an answer." }); setLive("failed", false); return; }
+
+  const best = scored.slice().sort((a,b) => median(a.e)-median(b.e))[0];
+  const lat = n => median(okRuns(n).map(r => r.results[n].runtime_ms));
+  const live = scored.map(o => o.n);
+  const fast = live.slice().sort((a,b) => lat(a)-lat(b))[0];
+  const slow = live.slice().sort((a,b) => lat(b)-lat(a))[0];
+  const ratio = lat(slow)/Math.max(lat(fast), .01), be = median(best.e);
+
+  setBot({
+    mood: be < 5 ? "happy" : be < 20 ? "flat" : "sad", state:"done",
+    say: `&#127919; <b>${best.n.toUpperCase()}</b> read me best: ${keys[0]} within <b>${be.toFixed(1)}%</b>` +
+         (batch ? ` (median over ${runs.length} motors).` : ".") +
+         `<br>&#9889; <b>${fast.toUpperCase()}</b> was quickest at <b>${fmtMs(lat(fast))}</b>` +
+         (ratio >= 2 ? ` — <b>${ratio.toFixed(0)}×</b> faster than ${slow.toUpperCase()}.` : ".")
+  });
+  setLive("done", false);
+}
+
+/* --------------------------------- actions ------------------------------- */
+
+async function run(animate) {
+  if (busy) return;
+  $("err").textContent = "";
+  const names = chosen();
+  if (!names.length) { $("err").textContent = "Tick at least one method."; return; }
+  busy = true; $("go").disabled = true; setLive("running", true);
+  try {
+    const N = nMotors();
+    setBot({ say: N > 1 ? `Warming up <b>${N}</b> motors…` : "Warming up…" });
+    const samples = [];
+    for (let i = 0; i < N; i++) samples.push(await fetchMotor(i));
+    runs = samples.map(s => ({ sample:s, results:{} }));
+    sample = runs[0].sample; revealTo = null;
+    drawPills(); drawThermo(); drawCurrent(); drawRace(); drawSpread();
+    if (animate) await play();
+    await calibrate(names);
+  } catch (e) {
+    $("err").textContent = e.message;
+    setBot({ mood:"sad", state:"error", say:e.message });
+    setLive("error", false);
+  } finally { busy = false; $("go").disabled = false; }
+}
+
+const refresh = () => loadPreview().catch(e => { $("err").textContent = e.message; });
+
+function setSource(s) {
+  source = s;
+  $("srcTest").className = s === "test" ? "on" : "";
+  $("srcSynth").className = s === "synth" ? "on" : "";
+  $("paneTest").className = s === "test" ? "" : "hide";
+  $("paneSynth").className = s === "synth" ? "" : "hide";
+  refresh();
+}
+
+async function syncTestbed() {
+  const tb = $("testbed").value;
+  $("kwhWrap").className = tb === "two_node" ? "" : "hide";
+  if (source === "test") {
+    const info = await api("/demo/runs/" + tb);
+    $("run").max = info.n_runs - 1;
+    $("runMax").textContent = `(0–${info.n_runs-1})`;
+    if (+$("run").value > info.n_runs-1) $("run").value = 0;
+  }
+  refresh();
+}
+
+// sliders that only relabel themselves as you drag, and reload on release
+[["sHA","sHALabel",v => (+v).toFixed(1)+" W/K"], ["sKWH","sKWHLabel",v => (+v).toFixed(1)+" W/K"],
+ ["sLevel","sLevelLabel",v => (+v).toFixed(1)+" A"], ["sAmb","sAmbLabel",v => v+" °C"],
+ ["sNoise","sNoiseLabel",v => (+v).toFixed(2)+" °C"], ["sDur","sDurLabel",v => v+" s"],
+ ["window","windowLabel",v => v+"%"], ["motors","motorsLabel",v => v]
+].forEach(([id,lbl,fmt]) => {
+  const el = $(id);
+  el.oninput = () => { $(lbl).textContent = fmt(el.value); };
+  if (id !== "motors") el.onchange = refresh;
+});
+$("motors").onchange = () => {
+  const b = nMotors() > 1;
+  $("row3").className = "row-3" + (b ? " batch" : "");
+  $("spreadPanel").className = "panel" + (b ? "" : " hide");
+  $("spreadSub").textContent = `across ${nMotors()} motors`;
+};
+$("sProfile").onchange = refresh;
+$("testbed").onchange = syncTestbed;
+$("run").onchange = refresh;
+$("dice").onclick = () => { $("run").value = Math.floor(Math.random()*(+$("run").max+1)); refresh(); };
+$("srcTest").onclick = () => setSource("test");
+$("srcSynth").onclick = () => setSource("synth");
+$("go").onclick = () => run(true);
+$("skip").onclick = () => run(false);
+
+loadMethods().then(syncTestbed).catch(e => { $("err").textContent = e.message; });
+</script>
+</body>
+</html>

@@ -71,7 +71,7 @@ def main():
     # 1. Speed distribution (box plot, log scale) -- 1-node | 2-node
     # =========================================================================
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), facecolor=SURFACE)
-    suptitle(fig, "ParamsCalibrator — distribuția vitezei pe cele 25 de rulări (nu doar mediana)")
+    suptitle(fig, "ParamsCalibrator - speed distribution across all 25 runs (not just the median)")
 
     for ax, df, title in zip(axes, [df1, df2], ["1-node testbed", "2-node testbed"]):
         data = [df.loc[df["method"] == m, "runtime_ms"].values for m in METHOD_ORDER]
@@ -90,7 +90,7 @@ def main():
         ax.set_xticks(range(len(METHOD_ORDER)))
         ax.set_xticklabels([METHOD_LABEL[m] for m in METHOD_ORDER], fontsize=8, color=INK_PRIMARY, rotation=20)
         ax.set_title(title, fontsize=10, color=INK_PRIMARY, loc="left")
-        style_axes(ax, ylabel="timp execuție (ms, scală log)" if ax is axes[0] else None, log=True)
+        style_axes(ax, ylabel="runtime (ms, log scale)" if ax is axes[0] else None, log=True)
 
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig(os.path.join(FIG_DIR, "speed_distribution.png"), dpi=160, facecolor=SURFACE)
@@ -100,7 +100,7 @@ def main():
     # 2. Speed vs. accuracy trade-off (scatter, direct-labeled) -- 1-node | 2-node
     # =========================================================================
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), facecolor=SURFACE)
-    suptitle(fig, "ParamsCalibrator — viteză vs. acuratețe: un singur punct rezumă fiecare metodă")
+    suptitle(fig, "ParamsCalibrator - speed vs. accuracy: one point summarises each method")
 
     # GA and PSO land on nearly identical (speed, accuracy) values in both
     # testbeds -- their default labels collide, so nudge them apart deliberately.
@@ -118,9 +118,9 @@ def main():
                 fontsize=8.5, color=INK_PRIMARY, fontweight="bold" if m == "mlp" else "normal",
             )
         ax.set_xscale("log")
-        ax.set_xlabel("timp execuție median (ms, scală log)", color=INK_SECONDARY, fontsize=9)
+        ax.set_xlabel("median runtime (ms, log scale)", color=INK_SECONDARY, fontsize=9)
         ax.set_title(title, fontsize=10, color=INK_PRIMARY, loc="left")
-        style_axes(ax, ylabel="eroare hA median (MAPE %)" if ax is axes[0] else None)
+        style_axes(ax, ylabel="median hA error (MAPE %)" if ax is axes[0] else None)
         ax.set_ylim(bottom=0)
 
     fig.tight_layout(rect=[0, 0, 1, 0.93])
@@ -131,7 +131,7 @@ def main():
     # 3. Scalability (bar) -- runtime ratio (log) | accuracy ratio (linear)
     # =========================================================================
     fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), facecolor=SURFACE)
-    suptitle(fig, "ParamsCalibrator — scalabilitate: 1 parametru → 2-3 parametri calibrați simultan")
+    suptitle(fig, "ParamsCalibrator - scalability: 1 parameter -> 2 parameters calibrated simultaneously")
 
     scal = summary["scalability"]
     colors = [METHOD_COLORS[m] for m in METHOD_ORDER]
@@ -140,24 +140,24 @@ def main():
     vals = [scal[m]["runtime_ratio_2n_over_1n"] for m in METHOD_ORDER]
     bars = ax.bar(range(len(METHOD_ORDER)), vals, color=colors, width=0.6)
     ax.axhline(1.0, color=INK_MUTED, linewidth=1, linestyle="--")
-    ax.text(len(METHOD_ORDER) - 0.4, 1.0, " fără penalizare (1×)", color=INK_MUTED, fontsize=7.5, va="bottom")
+    ax.text(len(METHOD_ORDER) - 0.4, 1.0, " no penalty (1x)", color=INK_MUTED, fontsize=7.5, va="bottom")
     for bar, v in zip(bars, vals):
-        ax.text(bar.get_x() + bar.get_width() / 2, v, f"{v:.1f}×", ha="center", va="bottom", fontsize=8, color=INK_SECONDARY)
+        ax.text(bar.get_x() + bar.get_width() / 2, v, f"{v:.1f}x", ha="center", va="bottom", fontsize=8, color=INK_SECONDARY)
     ax.set_xticks(range(len(METHOD_ORDER)))
     ax.set_xticklabels([METHOD_LABEL[m] for m in METHOD_ORDER], fontsize=8, color=INK_PRIMARY, rotation=20)
-    ax.set_title("Raport timp execuție (2-noduri / 1-nod)", fontsize=10, color=INK_PRIMARY, loc="left")
-    style_axes(ax, ylabel="raport timp execuție (scală log)", log=True)
+    ax.set_title("Runtime ratio (2-node / 1-node)", fontsize=10, color=INK_PRIMARY, loc="left")
+    style_axes(ax, ylabel="runtime ratio (log scale)", log=True)
 
     ax = axes[1]
     vals = [scal[m]["hA_mape_ratio_2n_over_1n"] for m in METHOD_ORDER]
     bars = ax.bar(range(len(METHOD_ORDER)), vals, color=colors, width=0.6)
     ax.axhline(1.0, color=INK_MUTED, linewidth=1, linestyle="--")
     for bar, v in zip(bars, vals):
-        ax.text(bar.get_x() + bar.get_width() / 2, v, f"{v:.2f}×", ha="center", va="bottom", fontsize=8, color=INK_SECONDARY)
+        ax.text(bar.get_x() + bar.get_width() / 2, v, f"{v:.2f}x", ha="center", va="bottom", fontsize=8, color=INK_SECONDARY)
     ax.set_xticks(range(len(METHOD_ORDER)))
     ax.set_xticklabels([METHOD_LABEL[m] for m in METHOD_ORDER], fontsize=8, color=INK_PRIMARY, rotation=20)
-    ax.set_title("Raport eroare hA (2-noduri / 1-nod)", fontsize=10, color=INK_PRIMARY, loc="left")
-    style_axes(ax, ylabel="raport eroare (MAPE)")
+    ax.set_title("hA error ratio (2-node / 1-node)", fontsize=10, color=INK_PRIMARY, loc="left")
+    style_axes(ax, ylabel="error ratio (MAPE)")
 
     fig.tight_layout(rect=[0, 0, 1, 0.93])
     fig.savefig(os.path.join(FIG_DIR, "scalability.png"), dpi=160, facecolor=SURFACE)
