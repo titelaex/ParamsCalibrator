@@ -76,9 +76,6 @@
   .pill { font-size:11px; padding:4px 9px; border-radius:99px; border:1px solid var(--line);
           color:var(--muted); background:var(--panel2); }
   .pill b { color:var(--fg); font-weight:600; }
-  .pill.good{ border-color:rgba(29,138,74,.45); color:var(--good); background:rgba(29,138,74,.07); }
-  .pill.mid { border-color:rgba(194,102,10,.45); color:var(--warn); background:rgba(194,102,10,.07); }
-  .pill.bad { border-color:rgba(211,58,72,.45); color:var(--bad); background:rgba(211,58,72,.06); }
   .pill.src { border-color:rgba(0,134,124,.45); color:var(--accent); background:rgba(0,134,124,.07); }
 
   svg { display:block; width:100%; }
@@ -105,6 +102,9 @@
   tr.pending td { color:var(--muted); }
   .good{color:var(--good);} .mid{color:var(--warn);} .bad{color:var(--bad);}
   .err { color:var(--bad); font-size:12px; margin-top:10px; }
+  .warn-note { margin-top:9px; padding:7px 9px; border-radius:8px; font-size:11.5px;
+               color:var(--warn); background:rgba(194,102,10,.08);
+               border:1px solid rgba(194,102,10,.35); }
 </style>
 </head>
 <body>
@@ -134,9 +134,6 @@
     </div>
 
     <div id="paneTest">
-      <label class="f" for="run">First run <span id="runMax"></span></label>
-      <input type="number" id="run" value="0" min="0" step="1">
-      <button class="ghost" id="dice">&#127922; pick at random</button>
       <label class="f" for="window">Data window <span class="val" id="windowLabel">100%</span></label>
       <input type="range" id="window" min="5" max="100" step="5" value="100">
     </div>
@@ -170,6 +167,7 @@
 
     <label class="f">Competitors</label>
     <div class="methods" id="methods"></div>
+    <div class="warn-note hide" id="slowNote"></div>
 
     <button class="go" id="go">&#9654; Start the motor</button>
     <button class="ghost" id="skip">calibrate now (skip animation)</button>
@@ -278,6 +276,8 @@ const MIN_SPAN_C = 10;
 const PLAY_MS = 3200;
 
 let source = "test";     // "test" | "synth"
+let nRuns = 0;           // size of the held-out set
+let runStart = 0;        // index of the first held-out motor of the batch, re-drawn per press
 let runs = [];           // [{ sample, results:{ method:{params,runtime_ms,n_evals,curve,error} } }]
 let sample = null;       // runs[0].sample -- the motor the charts show
 let revealTo = null, busy = false;
@@ -315,29 +315,29 @@ function channels() {
        { meas:"T_h_measured", truth:"T_h_true", lbl:"housing" }];
 }
 
-/** How much signal the window holds: the real temperature rise against sensor
- *  noise, taken over the whole window rather than per sample -- a calibrator
- *  sees all n samples at once and averaging beats white noise down by sqrt(n).
- *  A rough guide for picking a run, not a prediction of the error. */
-function snr(s) {
+/** Peak-to-peak temperature excursion over the window, noise excluded.
+ *  Peak-to-peak rather than "rise above the first sample": a fair share of runs
+ *  start above ambient and *cool* toward it, and those carry just as much
+ *  information about hA even though they never rise at all. */
+function swingC(s) {
   s = s || sample;
   const truth = s[s.testbed === "one_node" ? "T_true" : "T_w_true"];
-  const rise = Math.max(...truth) - truth[0];
-  const ratio = rise * Math.sqrt(truth.length) / Math.max(s.noise_std, 1e-9);
-  const cls = ratio >= 20 ? "good" : ratio >= 5 ? "mid" : "bad";
-  return { rise, ratio, cls, verdict: ratio >= 20 ? "good signal" : ratio >= 5 ? "marginal signal" : "weak signal" };
+  return Math.max(...truth) - Math.min(...truth);
 }
 
 function drawPills() {
-  const q = snr(), n = runs.length;
+  const n = runs.length;
   $("pills").innerHTML =
     `<span class="pill src">${source === "test" ? "held-out test set" : "your motor, simulated"}</span>` +
-    (n > 1 ? `<span class="pill">batch of <b>${n}</b> motors &middot; showing #1</span>` : "") +
+    (source === "test"
+      ? `<span class="pill">${n > 1 ? `runs <b>${runStart}–${(runStart+n-1) % Math.max(nRuns,1)}</b>` : `run <b>${sample.index}</b>`}</span>`
+      : "") +
+    (n > 1 ? `<span class="pill">batch of <b>${n}</b> &middot; showing #1</span>` : "") +
     Object.entries(sample.true_params).map(([k,v]) => `<span class="pill">${k} true <b>${v.toFixed(2)}</b> W/K</span>`).join("") +
     `<span class="pill">ambient <b>${sample.T_ambient.toFixed(1)}&deg;C</b></span>` +
     `<span class="pill">noise <b>&plusmn;${sample.noise_std.toFixed(2)}&deg;C</b></span>` +
     `<span class="pill">window <b>${sample.n_samples}</b> samples</span>` +
-    `<span class="pill ${q.cls}">SNR <b>${q.ratio.toFixed(0)}</b> &middot; ${q.verdict}</span>`;
+    `<span class="pill">temp swing <b>${swingC().toFixed(1)}&deg;C</b></span>`;
 }
 
 /* ------------------------------- thermogram ------------------------------ */
@@ -536,7 +536,7 @@ async function loadMethods() {
 async function fetchMotor(i) {
   const tb = $("testbed").value;
   if (source === "test") {
-    const idx = (+$("run").value + i) % (+$("run").max + 1);
+    const idx = (runStart + i) % Math.max(nRuns, 1);
     return api(`/demo/sample/${tb}?index=${idx}&window=${+$("window").value/100}`);
   }
   const qs = new URLSearchParams({
@@ -552,12 +552,9 @@ async function loadPreview() {
   runs = [{ sample:s, results:{} }];
   sample = s; revealTo = null;
   drawPills(); drawThermo(); drawCurrent(); drawRace(); drawSpread();
-  const q = snr();
   const who = source === "test" ? `Held-out run ${sample.index}` : "Your motor";
   setBot({ heat:0, current:0, mood:"flat", look:.5, state:"standby", T:null, I:null,
-    say: q.ratio < 5
-      ? `${who}: this window is <b>weak</b> (SNR ${q.ratio.toFixed(0)}). I only warm up ${q.rise.toFixed(1)}&deg;C — that is hard on every method.`
-      : `${who}: I warm up by <b>${q.rise.toFixed(1)}&deg;C</b> over ${sample.n_samples} samples. Ready when you are!` });
+    say: `${who}: my temperature moves <b>${swingC().toFixed(1)}&deg;C</b> over ${sample.n_samples} samples. Ready when you are!` });
   $("rows").innerHTML = `<tr><td style="color:var(--muted)">Nobody has run yet.</td></tr>`;
 }
 
@@ -699,6 +696,7 @@ async function run(animate) {
   busy = true; $("go").disabled = true; setLive("running", true);
   try {
     const N = nMotors();
+    if (source === "test") pickRunStart();   // a motor nobody hand-picked
     setBot({ say: N > 1 ? `Warming up <b>${N}</b> motors…` : "Warming up…" });
     const samples = [];
     for (let i = 0; i < N; i++) samples.push(await fetchMotor(i));
@@ -716,6 +714,27 @@ async function run(animate) {
 
 const refresh = () => loadPreview().catch(e => { $("err").textContent = e.message; });
 
+/** Draw fresh held-out motors. There is no run picker on purpose: on stage you
+ *  want a motor the model has never seen and that you did not hand-pick, and
+ *  the pills above the plot still name exactly which runs came up. */
+const pickRunStart = () => { runStart = nRuns ? Math.floor(Math.random()*nRuns) : 0; };
+
+// GA / PSO / BayesOpt run hundreds of full simulator rollouts per calibration,
+// so a batch multiplies tens of seconds by N. Say so before the click, not after.
+const SLOW_S = { ga:20, pso:30, bayesopt:15 };
+
+function syncSlowNote() {
+  const slow = chosen().filter(n => n in SLOW_S);
+  const N = nMotors();
+  const secs = N * slow.reduce((a,n) => a + SLOW_S[n], 0);
+  if (!slow.length || secs < 45) { $("slowNote").className = "warn-note hide"; return; }
+  const t = secs >= 90 ? `~${Math.round(secs/60)} min` : `~${Math.round(secs)} s`;
+  $("slowNote").className = "warn-note";
+  $("slowNote").innerHTML =
+    `${slow.map(n => n.toUpperCase()).join(", ")} re-solve from scratch every time` +
+    (N > 1 ? ` &times; ${N} motors` : "") + `. Expect <b>${t}</b> before the table fills in.`;
+}
+
 function setSource(s) {
   source = s;
   $("srcTest").className = s === "test" ? "on" : "";
@@ -730,10 +749,10 @@ async function syncTestbed() {
   $("kwhWrap").className = tb === "two_node" ? "" : "hide";
   if (source === "test") {
     const info = await api("/demo/runs/" + tb);
-    $("run").max = info.n_runs - 1;
-    $("runMax").textContent = `(0–${info.n_runs-1})`;
-    if (+$("run").value > info.n_runs-1) $("run").value = 0;
+    nRuns = info.n_runs;
+    pickRunStart();
   }
+  syncSlowNote();
   refresh();
 }
 
@@ -747,16 +766,17 @@ async function syncTestbed() {
   el.oninput = () => { $(lbl).textContent = fmt(el.value); };
   if (id !== "motors") el.onchange = refresh;
 });
+$("motors").addEventListener("input", syncSlowNote);
 $("motors").onchange = () => {
   const b = nMotors() > 1;
   $("row3").className = "row-3" + (b ? " batch" : "");
   $("spreadPanel").className = "panel" + (b ? "" : " hide");
   $("spreadSub").textContent = `across ${nMotors()} motors`;
+  syncSlowNote();
 };
+$("methods").addEventListener("change", syncSlowNote);
 $("sProfile").onchange = refresh;
 $("testbed").onchange = syncTestbed;
-$("run").onchange = refresh;
-$("dice").onclick = () => { $("run").value = Math.floor(Math.random()*(+$("run").max+1)); refresh(); };
 $("srcTest").onclick = () => setSource("test");
 $("srcSynth").onclick = () => setSource("synth");
 $("go").onclick = () => run(true);

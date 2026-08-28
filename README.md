@@ -97,8 +97,10 @@ temperature -- then every ticked method is calibrated on that same window throug
 
 Two data sources:
 
-- **Held-out test set** -- a run from `data/motor_*_test.npz`: a virtual motor with constants the
-  models never saw during training. This is the honest accuracy story.
+- **Held-out test set** -- runs from `data/motor_*_test.npz`: virtual motors with constants the
+  models never saw during training. This is the honest accuracy story. There is deliberately no run
+  picker -- each press draws fresh runs at random, so nothing on stage looks hand-picked; the pills
+  above the plot name which runs came up.
 - **Design a motor** -- you dial `hA` (and `k_wh`), the load profile and current, ambient, sensor
   noise and run length; `/demo/synth/...` simulates that motor through the same physics used to
   build the training set, and the calibrators have to recover the numbers you just chose. Dial
@@ -116,10 +118,9 @@ through the simulator via `/demo/reconstruct/...` -- a bad calibration is visibl
 away from the sensor data. **Load profile** shows the driving current `I(t)`. **Latency race** is
 log-scale bars, where the MLP at single-digit milliseconds sits next to PSO/GA at tens of seconds.
 
-The header pills also report the window's SNR (`temperature rise x sqrt(n) / sensor noise`) as a
-rough guide -- a low-SNR window is one no method calibrates well, so it is worth a glance before
-demoing a run picked on the spot. Note that GA, PSO and BayesOpt genuinely take tens of seconds per
-request; leave them unticked (and keep the batch size small) unless the latency gap is the point.
+Note that GA, PSO and BayesOpt genuinely take tens of seconds per request; leave them unticked
+(and keep the batch size small) unless the latency gap is the point you want to make -- the UI warns
+you with a rough time estimate when a slow method is ticked.
 
 The held-out mode needs the generated datasets under `data/` (`scripts/generate_datasets.py`),
 which it reads through `/demo/sample/...` purely so it can score the answer -- the calibration
